@@ -1,0 +1,4 @@
+001_manpages_fixes.patch
+002_bianry_spelling_error_fix.patch
+003_Fix-CVE-2009-1297.patch
+004_make-iscsistart-a-dynamic-binary.patch

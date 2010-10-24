@@ -1,0 +1,25 @@
+From 40ef398290064e0c52be9e0d2127901b0f91f20d Mon Sep 17 00:00:00 2001
+From: Ritesh Raj Sarraf <rrs@researchut.com>
+Date: Tue, 2 Feb 2010 11:43:29 +0530
+Subject: [PATCH 32/43] make iscsistart a dynamic binary
+
+---
+ usr/Makefile |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/usr/Makefile b/usr/Makefile
+index 04f7707..cf3d8f5 100644
+--- a/usr/Makefile
++++ b/usr/Makefile
+@@ -55,7 +55,7 @@ iscsiadm: $(COMMON_SRCS) $(FW_BOOT_SRCS) strings.o discovery.o iscsiadm.o
+ 
+ iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
+ 		iscsistart.o statics.o
+-	$(CC) $(CFLAGS) -static $^ -o $@
++	$(CC) $(CFLAGS) $^ -o $@
+ clean:
+ 	rm -f *.o $(PROGRAMS) .depend $(LIBSYS)
+ 
+-- 
+1.7.0
+
