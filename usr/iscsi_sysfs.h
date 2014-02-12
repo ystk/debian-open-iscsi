@@ -36,14 +36,17 @@ struct iscsi_auth_config;
 
 extern void free_transports(void);
 extern char *iscsi_sysfs_get_iscsi_kernel_version(void);
-extern int iscsi_sysfs_check_class_version(void);
 extern int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info,
 					     char *sys_session);
 extern int iscsi_sysfs_session_has_leadconn(uint32_t sid);
 
 typedef int (iscsi_sysfs_session_op_fn)(void *, struct session_info *);
 typedef int (iscsi_sysfs_host_op_fn)(void *, struct host_info *);
+typedef int (iscsi_sysfs_iface_op_fn)(void *, struct iface_rec *);
 
+extern int iscsi_sysfs_for_each_iface_on_host(void *data, uint32_t host_no,
+					      int *nr_found,
+					      iscsi_sysfs_iface_op_fn *fn);
 extern int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 					iscsi_sysfs_session_op_fn *fn);
 extern int iscsi_sysfs_for_each_host(void *data, int *nr_found,
@@ -51,6 +54,7 @@ extern int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 extern uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err);
 extern uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface,
 						    int *rc);
+extern uint32_t iscsi_sysfs_get_host_no_from_hwaddress(char *hwaddress, int *rc);
 extern int iscsi_sysfs_get_hostinfo_by_host_no(struct host_info *hinfo);
 extern int iscsi_sysfs_get_sid_from_path(char *session);
 extern char *iscsi_sysfs_get_blockdev_from_lun(int hostno, int target, int sid);
@@ -84,6 +88,9 @@ extern struct iscsi_transport *iscsi_sysfs_get_transport_by_hba(uint32_t host_no
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_session(char *sys_session);
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_sid(uint32_t sid);
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name);
+extern int iscsi_sysfs_is_transport_loaded(char *transport_name);
+extern int iscsi_sysfs_session_supports_nop(int sid);
+extern int iscsi_sysfs_session_user_created(int sid);
 
 extern struct list_head transports;
 

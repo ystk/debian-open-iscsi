@@ -22,7 +22,7 @@
 #include <errno.h>
 
 #include "list.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "log.h"
 #include "iscsi_sysfs.h"
 #include "version.h"
@@ -33,6 +33,7 @@
 #include "transport.h"
 #include "initiator.h"
 #include "iface.h"
+#include "iscsi_err.h"
 
 static int match_host_to_session(void *data, struct session_info *info)
 {
@@ -117,6 +118,102 @@ static int host_info_print_flat(void *data, struct host_info *hinfo)
 	return 0;
 }
 
+static int print_host_iface(void *data, struct iface_rec *iface)
+{
+	char *prefix = data;
+
+	printf("%s**********\n", prefix);
+	printf("%sInterface:\n", prefix);
+	printf("%s**********\n", prefix);
+
+	printf("%sKernel Name: %s\n", prefix, iface->name);
+
+	if (!strlen(iface->ipaddress))
+		printf("%sIPaddress: %s\n", prefix, UNKNOWN_VALUE);
+	else if (strchr(iface->ipaddress, '.')) {
+		printf("%sIPaddress: %s\n", prefix, iface->ipaddress);
+
+		if (!strlen(iface->gateway))
+			printf("%sGateway: %s\n", prefix, UNKNOWN_VALUE);
+		else
+			printf("%sGateway: %s\n", prefix, iface->gateway);
+		if (!strlen(iface->subnet_mask))
+			printf("%sSubnet: %s\n", prefix, UNKNOWN_VALUE);
+		else
+			printf("%sSubnet: %s\n", prefix, iface->subnet_mask);
+		if (!strlen(iface->bootproto))
+			printf("%sBootProto: %s\n", prefix, UNKNOWN_VALUE);
+		else
+			printf("%sBootProto: %s\n", prefix, iface->bootproto);
+	} else {
+		printf("%sIPaddress: [%s]\n", prefix, iface->ipaddress);
+
+		if (!strlen(iface->ipv6_autocfg))
+			printf("%sIPaddress Autocfg: %s\n", prefix,
+			       UNKNOWN_VALUE);
+		else
+			printf("%sIPaddress Autocfg: %s\n", prefix,
+			       iface->ipv6_autocfg);
+		if (!strlen(iface->ipv6_linklocal))
+			printf("%sLink Local Address: %s\n", prefix,
+			       UNKNOWN_VALUE);
+		else
+			printf("%sLink Local Address: [%s]\n", prefix,
+			       iface->ipv6_linklocal);
+		if (!strlen(iface->linklocal_autocfg))
+			printf("%sLink Local Autocfg: %s\n", prefix,
+			       UNKNOWN_VALUE);
+		else
+			printf("%sLink Local Autocfg: %s\n", prefix,
+			       iface->linklocal_autocfg);
+		if (!strlen(iface->ipv6_router))
+			printf("%sRouter Address: %s\n", prefix,
+			      UNKNOWN_VALUE);
+		else
+			printf("%sRouter Address: [%s]\n", prefix,
+			       iface->ipv6_router);
+	}
+
+	if (!strlen(iface->port_state))
+		printf("%sPort State: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sPort State: %s\n", prefix, iface->port_state);
+
+	if (!strlen(iface->port_speed))
+		printf("%sPort Speed: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sPort Speed: %s\n", prefix, iface->port_speed);
+
+	if (!iface->port)
+		printf("%sPort: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sPort: %u\n", prefix, iface->port);
+
+	if (!iface->mtu)
+		printf("%sMTU: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sMTU: %u\n", prefix, iface->mtu);
+
+	if (iface->vlan_id == UINT16_MAX)
+		printf("%sVLAN ID: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sVLAN ID: %u\n", prefix, iface->vlan_id);
+
+	if (iface->vlan_priority == UINT8_MAX)
+		printf("%sVLAN priority: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sVLAN priority: %u\n", prefix, iface->vlan_priority);
+	return 0;
+}
+
+static void print_host_ifaces(struct host_info *hinfo, char *prefix)
+{
+	int nr_found;
+
+	iscsi_sysfs_for_each_iface_on_host(prefix, hinfo->host_no, &nr_found,
+					   print_host_iface);
+}
+
 static int host_info_print_tree(void *data, struct host_info *hinfo)
 {
 	struct list_head sessions;
@@ -127,12 +224,15 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 
 	INIT_LIST_HEAD(&sessions);
 
+
 	printf("Host Number: %u\n", hinfo->host_no);
 	if (!iscsi_sysfs_get_host_state(state, hinfo->host_no))
 		printf("\tState: %s\n", state);
 	else
 		printf("\tState: Unknown\n");
 	print_host_info(&hinfo->iface, "\t");
+
+	print_host_ifaces(hinfo, "\t");
 
 	if (!session_info_flags)
 		return 0;
@@ -150,7 +250,7 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 	printf("\tSessions:\n");
 	printf("\t*********\n");
 
-	session_info_print_tree(&sessions, "\t", session_info_flags);
+	session_info_print_tree(&sessions, "\t", session_info_flags, 0);
 	session_info_free_list(&sessions);
 	return 0;
 }
@@ -195,18 +295,22 @@ int host_info_print(int info_level, uint32_t host_no)
 			break;
 		}
 
+		transport_probe_for_offload();
 		err = iscsi_sysfs_for_each_host(&flags, &num_found,
 						host_info_print_tree);
 		break;
 	default:
 		log_error("Invalid info level %d. Try 0 - 4.", info_level);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	if (err) {
-		log_error("Can not get list of iSCSI hosts (%d)", err);
+		log_error("Can not get list of iSCSI hosts: %s",
+			  iscsi_err_to_str(err));
 		return err;
-	} else if (!num_found)
+	} else if (!num_found) {
 		log_error("No iSCSI hosts.");
+		return ISCSI_ERR_NO_OBJS_FOUND;
+	}
 	return 0;
 }

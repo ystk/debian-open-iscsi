@@ -1,9 +1,116 @@
-open-iscsi (2.0.871.3-2squeeze1) unstable; urgency=low
+open-iscsi (2.0.873-3) unstable; urgency=low
 
+  * [4939401] Fix build to install udeb stuff only on supported architectures
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 27 Jun 2012 22:36:05 +0530
+
+open-iscsi (2.0.873-2) unstable; urgency=low
+
+  * [0019fa9] Restrict architecture for the udeb package as its dependency,
+    scsi-modules, is not available on all the architecture paltforms
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 26 Jun 2012 18:54:17 +0530
+
+open-iscsi (2.0.873-1) unstable; urgency=low
+
+  * [53943f2] Load iscsi_ibft module to allow target session over iBFT.
+    Thanks to JOORIS Emmanuel (Closes: #672122)
+  * [ca41744] Delete old obsolete patches
+  * [01a54bf] Drop old manpages already available upstream
+  * [caf884c] ship upstream manpages for iscsi-iname and iscsistart
+  * [a983848] Imported Upstream version 2.0.873
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Mon, 21 May 2012 23:54:53 +0530
+
+open-iscsi (2.0.872+git0.6676a1cf-2) unstable; urgency=low
+
+  * Upload to unstable
+  * [cb80472] Fix default iscsid path in config file.
+    Thanks to Michal Suchanek (Closes: #650221)
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 24 Apr 2012 09:41:08 +0530
+
+open-iscsi (2.0.872+git0.6676a1cf-1) experimental; urgency=low
+
+  [ Ritesh Raj Sarraf ]
+  * New Upstream git snapshot (Closes: #645752) 
+  * [ce26f7c] Imported Upstream version 2.0.872+git0.6676a1cf
+  * [9ad08d7] also include iscsitart in the udeb
+  * [bc79ad2] refresh patch debian/patches/spelling-error-fixes.patch
+  * [0286328] refresh patch 004_make-iscsistart-a-dynamic-binary.patch
+  * [360a509] Drop patches:
+    + iscsi-dont-build-with-ssl.patch and
+    + disable-isns-security.patch
+  * [350db4d] rename and reorder patches
+  * [794fa4f] Package-Type is now an understood feild by dpkg
+  * [593f187] Add hardened build flags.
+    Thanks to Moritz Muehlenhoff (Closes: #659662)
+  * [cf4c6c3] Kill iscsid processes properly, on stop.
+    Thanks to Gwendal Grignou (Closes: #665966)
+  * [f1a9d2f] linitan fixes for spelling errors and manpage hyphen errors
+  * [a8560c8] add and fix lsb headers for init files
+
+  [ Colin Watson ]
+  * [156b745] open-iscsi: add a udeb (Closes: #635161)
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Sat, 07 Apr 2012 21:02:37 +0530
+
+open-iscsi (2.0.872-2) unstable; urgency=low
+
+  * Upload to unstable 
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 14 Sep 2011 14:26:00 +0530
+
+open-iscsi (2.0.872-1) experimental; urgency=low
+
+  * New Upstream Release  
+  * [cccd5a9] Use udevadm to check for existense of udev.
+    Thanks to Marco d'Itri (Closes: #622209)
+  * [ddb81e4] Drop patches, merged upstream
+  * [25aa1d9] disable security and slp support
+  * [89b2a6a] Add patch to disable ssl.
+    Thanks to Mike Christie
+  * [d70e88a] Refresh patch
+  * [b501aec] delete debian/patches/disable-isns.patch
+  * [2cc67f7] spelling-error and hyphentation fixes
+  * [b886116] Bump Standards Version to 3.9.2
+  * [405ecfd] add autotools-dev to build-dep to ensure we have no stale
+    configure scripts
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Fri, 26 Aug 2011 16:21:38 +0530
+
+open-iscsi (2.0.871.3-6) unstable; urgency=low
+
+  * [87c440c] fix gcc 4.6 build failure (Closes: #625152)
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 03 May 2011 00:22:07 +0530
+
+open-iscsi (2.0.871.3-5) unstable; urgency=low
+
+  * Last upload was incorrect. Really upload to unstable 
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Sat, 12 Feb 2011 02:00:34 +0530
+
+open-iscsi (2.0.871.3-4) unstable; urgency=low
+
+  * Reupload to unstable 
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 10 Feb 2011 20:17:07 +0530
+
+open-iscsi (2.0.871.3-3) experimental; urgency=low
+
+  * Install iscsid.conf with 0600 permission as it can contain passwords
+    (Closes: #472965)
+  * Provide an example for iSCSI root installation (Closes: #492358) 
+  * Add support to enable multiple session to the iSCSI Target in the
+    initramfs. Thanks to Norbert Tretkowski for the patch.
+    (Closes: #598773) 
   * Add patch to support NICs that have native iSCSI support. Thanks to
     Bjoern Metzdorf for the patch. (Closes: #514924) 
+  * cherry pick commit f0b670c0 from upstrem (Closes: #603990)
+  * Bump Standards Version (No changes required) 
 
- -- Ritesh Raj Sarraf <rrs@debian.org>  Mon, 25 Oct 2010 02:57:58 +0530
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 05 Jan 2011 13:43:42 +0545
 
 open-iscsi (2.0.871.3-2) unstable; urgency=low
 

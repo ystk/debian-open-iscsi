@@ -51,8 +51,27 @@ do_iscsi_login ()
 			   ${ISCSI_IN_USERNAME:+-U "$ISCSI_IN_USERNAME"}\
 			   ${ISCSI_IN_PASSWORD:+-W "$ISCSI_IN_PASSWORD"}
 	else
+		modprobe iscsi_ibft
 		iscsistart -b
 	fi
+
+	if [ -z $ISCSI_TARGET_PORT ]; then
+		ISCSI_TARGET_PORT=3260
+	fi
+
+	if [ -z $ISCSI_TARGET_GROUP ]; then
+		ISCSI_TARGET_GROUP=1
+	fi
+
+	for i in $ISCSI_TARGET_IP; do
+	iscsistart -i $ISCSI_INITIATOR -t $ISCSI_TARGET_NAME	\
+		   -g $ISCSI_TARGET_GROUP -a $i \
+		   -p $ISCSI_TARGET_PORT \
+		   ${ISCSI_USERNAME:+-u "$ISCSI_USERNAME"}	\
+		   ${ISCSI_PASSWORD:+-w "$ISCSI_PASSWORD"}	\
+		   ${ISCSI_IN_USERNAME:+-U "$ISCSI_IN_USERNAME"}\
+		   ${ISCSI_IN_PASSWORD:+-W "$ISCSI_IN_PASSWORD"}
+	done
 }
 
 parse_iscsi_ops ()

@@ -31,6 +31,5 @@ struct iscsi_daemon_config {
 	char *initiator_alias;
 };
 extern struct iscsi_daemon_config *dconfig;
-extern int control_fd;
 
 #endif	/* ISCSID_H */

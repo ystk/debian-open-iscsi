@@ -26,6 +26,6 @@ copy_exec /usr/sbin/iscsistart /sbin
 cp /etc/iscsi/initiatorname.iscsi $DESTDIR/etc
 cp /etc/iscsi/iscsi.initramfs $DESTDIR/etc
 
-for x in crc32c libcrc32c iscsi_tcp libiscsi scsi_transport_iscsi; do
+for x in crc32c libcrc32c iscsi_tcp libiscsi scsi_transport_iscsi iscsi_ibft; do
 	manual_add_modules ${x}
 done

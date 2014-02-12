@@ -6,6 +6,7 @@
 # Default-Start:     S
 # Default-Stop:      0 1 6
 # Short-Description: Starts and stops the iSCSI initiator services and logs in to default targets
+# Description:       Starts and stops the iSCSI initiator services and logs in to default targets
 ### END INIT INFO
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
@@ -102,9 +103,7 @@ start() {
 
 	starttargets
 
-	if [ -d /dev/.udev ] ; then # Only wait for udev when it is active
-		udevadm settle
-	fi
+	udevadm settle || true;
 
 
 	# Handle iSCSI LVM devices
@@ -166,7 +165,7 @@ stop() {
 
 	stoptargets
 	log_daemon_msg "Stopping iSCSI initiator service"
-	start-stop-daemon --stop --quiet --pidfile $PIDFILE --signal KILL --exec $DAEMON
+	start-stop-daemon --stop --quiet --pidfile $PIDFILE --signal TERM --exec $DAEMON
 	rm -f $PIDFILE
 	modprobe -r ib_iser 2>/dev/null
 	modprobe -r iscsi_tcp 2>/dev/null

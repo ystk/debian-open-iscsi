@@ -24,7 +24,7 @@
 
 struct iface_rec;
 struct list_head;
-struct db_set_param;
+struct boot_context;
 
 extern void iface_copy(struct iface_rec *dst, struct iface_rec *src);
 extern int iface_match(struct iface_rec *pattern, struct iface_rec *iface);
@@ -35,7 +35,7 @@ extern int iface_is_bound_by_hwaddr(struct iface_rec *iface);
 extern int iface_is_bound_by_netdev(struct iface_rec *iface);
 extern int iface_is_bound_by_ipaddr(struct iface_rec *iface);
 typedef int (iface_op_fn)(void *data, struct iface_rec *iface);
-extern int iface_for_each_iface(void *data, int *nr_found,
+extern int iface_for_each_iface(void *data, int skip_def, int *nr_found,
 				 iface_op_fn *fn);
 extern void iface_print(struct iface_rec *iface, char *prefix);
 extern int iface_print_flat(void *data, struct iface_rec *iface);
@@ -43,12 +43,21 @@ extern int iface_print_tree(void *data, struct iface_rec *iface);
 extern void iface_setup_host_bindings(void);
 extern int iface_get_by_net_binding(struct iface_rec *pattern,
 				    struct iface_rec *out_rec);
-extern int iface_conf_update(struct db_set_param *set_param,
+extern int iface_conf_update(struct list_head *params,
 			     struct iface_rec *iface);
 extern int iface_conf_write(struct iface_rec *iface);
 extern int iface_conf_delete(struct iface_rec *iface);
 extern int iface_is_valid(struct iface_rec *iface);
 extern void iface_link_ifaces(struct list_head *ifaces);
+extern int iface_setup_from_boot_context(struct iface_rec *iface,
+                                   struct boot_context *context);
+extern int iface_create_ifaces_from_boot_contexts(struct list_head *ifaces,
+						  struct list_head *targets);
+extern int iface_get_param_count(struct iface_rec *iface_primary,
+				 int iface_all);
+extern int iface_build_net_config(struct iface_rec *iface_primary,
+				  int iface_all, struct iovec *iovs);
+extern int iface_get_iptype(struct iface_rec *iface);
 
 #define iface_fmt "[hw=%s,ip=%s,net_if=%s,iscsi_if=%s]"
 #define iface_str(_iface) \

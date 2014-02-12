@@ -33,12 +33,14 @@
 #include "idbm.h"
 #include "idbm_fields.h"
 #include "log.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "iscsi_settings.h"
 #include "transport.h"
 #include "iscsi_sysfs.h"
 #include "iface.h"
 #include "sysdeps.h"
+#include "fw_context.h"
+#include "iscsi_err.h"
 
 #define IDBM_HIDE	0    /* Hide parameter when print. */
 #define IDBM_SHOW	1    /* Show parameter when print. */
@@ -69,6 +71,28 @@ static struct idbm *db;
 	_info[_n].can_modify = _mod; \
 	_n++; \
 } while(0)
+
+#define __recinfo_uint8(_key, _info, _rec, _name, _show, _n, _mod) do { \
+	_info[_n].type = TYPE_UINT8; \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
+	_info[_n].visible = _show; \
+	_info[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
+
+#define __recinfo_uint16(_key, _info, _rec, _name, _show, _n, _mod) do { \
+	_info[_n].type = TYPE_UINT16; \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
+	_info[_n].visible = _show; \
+	_info[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
 
 #define __recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n, _mod) do { \
 	_info[_n].type = TYPE_INT_O; \
@@ -127,83 +151,6 @@ static struct idbm *db;
 	_n++; \
 } while(0)
 
-/*
- * from linux kernel
- */
-static char *strstrip(char *s)
-{
-	size_t size;
-	char *end;
-
-	size = strlen(s);
-	if (!size)
-		return s;
-
-	end = s + size - 1;
-	while (end >= s && isspace(*end))
-		end--;
-	*(end + 1) = '\0';
-
-	while (*s && isspace(*s))
-		s++;
-
-	return s;
-}
-
-static char *get_global_string_param(char *pathname, const char *key)
-{
-	FILE *f = NULL;
-	int len;
-	char *line, buffer[1024];
-	char *name = NULL;
-
-	if (!pathname) {
-		log_error("No pathname to load %s from", key);
-		return NULL;
-	}
-
-	len = strlen(key);
-	if ((f = fopen(pathname, "r"))) {
-		while ((line = fgets(buffer, sizeof (buffer), f))) {
-
-			line = strstrip(line);
-
-			if (strncmp(line, key, len) == 0) {
-				char *end = line + len;
-
-				/*
-				 * make sure ther is something after the
-				 * key.
-				 */
-				if (strlen(end))
-					name = strdup(line + len);
-			}
-		}
-		fclose(f);
-		if (name)
-			log_debug(5, "%s=%s", key, name);
-	} else
-		log_error("can't open %s configuration file %s", key, pathname);
-
-	return name;
-}
-
-char *get_iscsi_initiatorname(char *pathname)
-{
-	char *name;
-
-	name = get_global_string_param(pathname, "InitiatorName=");
-	if (!name)
-		log_error("An InitiatorName= is required, but was not "
-			  "found in %s", pathname);
-	return name;
-}
-
-char *get_iscsi_initiatoralias(char *pathname)
-{
-	return get_global_string_param(pathname, "InitiatorAlias=");
-}
-
 static void
 idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 {
@@ -212,9 +159,10 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 	__recinfo_int_o2(DISC_STARTUP, ri, r, startup, IDBM_SHOW,
 			"manual", "automatic", num, 1);
 	__recinfo_int_o6(DISC_TYPE, ri, r, type, IDBM_SHOW,
-			"sendtargets", "offload_send_targets", "slp", "isns",
+			"sendtargets", "isns", "offload_send_targets", "slp",
 			"static", "fw", num, 0);
-	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
+	switch (r->type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
 		__recinfo_str(DISC_ST_ADDR, ri, r,
 			address, IDBM_SHOW, num, 0);
 		__recinfo_int(DISC_ST_PORT, ri, r,
@@ -238,7 +186,13 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 		__recinfo_int(DISC_ST_LOGIN_TMO, ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
 			IDBM_SHOW, num, 1);
-		__recinfo_int(DISC_ST_REOPEN_MAX,ri, r,
+		__recinfo_int_o2(DISC_ST_USE_DISC_DAEMON, ri, r,
+			u.sendtargets.use_discoveryd,
+			IDBM_SHOW, "No", "Yes", num, 1);
+		__recinfo_int(DISC_ST_DISC_DAEMON_POLL_INVAL, ri, r,
+			u.sendtargets.discoveryd_poll_inval,
+			IDBM_SHOW, num, 1);
+		__recinfo_int(DISC_ST_REOPEN_MAX, ri, r,
 			u.sendtargets.reopen_max,
 			IDBM_SHOW, num, 1);
 		__recinfo_int(DISC_ST_AUTH_TMO, ri, r,
@@ -248,12 +202,27 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			      u.sendtargets.conn_timeo.active_timeout,
 			      IDBM_SHOW, num, 1);
 		__recinfo_int(DISC_ST_MAX_RECV_DLEN, ri, r,
-			      u.sendtargets.iscsi.MaxRecvDataSegmentLength,
+			      u.sendtargets.conn_conf.MaxRecvDataSegmentLength,
 			      IDBM_SHOW, num, 1);
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		__recinfo_str(DISC_ISNS_ADDR, ri, r,
+			address, IDBM_SHOW, num, 0);
+		__recinfo_int(DISC_ISNS_PORT, ri, r,
+			port, IDBM_SHOW, num, 0);
+		__recinfo_int_o2(DISC_ISNS_USE_DISC_DAEMON, ri, r,
+			u.isns.use_discoveryd,
+			IDBM_SHOW, "No", "Yes", num, 1);
+		__recinfo_int(DISC_ISNS_DISC_DAEMON_POLL_INVAL, ri, r,
+			u.isns.discoveryd_poll_inval,
+			IDBM_SHOW, num, 1);
+		break;
+	default:
+		break;
 	}
 }
 
-static void
+void
 idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 {
 	int num = 0, i;
@@ -262,6 +231,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int(NODE_TPGT, ri, r, tpgt, IDBM_SHOW, num, 0);
 	__recinfo_int_o3(NODE_STARTUP, ri, r, startup,
 			IDBM_SHOW, "manual", "automatic", "onboot", num, 1);
+	__recinfo_int_o2(NODE_LEADING_LOGIN, ri, r, leading_login, IDBM_SHOW,
+			 "No", "Yes", num, 1);
 	/*
 	 * Note: because we do not add the iface.iscsi_ifacename to
 	 * sysfs iscsiadm does some weird matching. We can change the iface
@@ -284,13 +255,39 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, iface.transport_name,
 		      IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_INAME, ri, r, iface.iname, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_BOOT_PROTO, ri, r, iface.bootproto, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_SUBNET_MASK, ri, r, iface.subnet_mask,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_GATEWAY, ri, r, iface.gateway, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, iface.ipv6_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r, iface.linklocal_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, iface.router_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL, ri, r, iface.ipv6_linklocal,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER, ri, r, iface.ipv6_router, IDBM_SHOW, num,
+		      1);
+	__recinfo_str(IFACE_STATE, ri, r, iface.state, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_VLAN_ID, ri, r, iface.vlan_id, IDBM_SHOW, num,
+			 1);
+	__recinfo_uint8(IFACE_VLAN_PRIORITY, ri, r, iface.vlan_priority,
+			IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_VLAN_STATE, ri, r, iface.vlan_state, IDBM_SHOW,
+		      num, 1);
+	__recinfo_int(IFACE_NUM, ri, r, iface.iface_num, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_MTU, ri, r, iface.mtu, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_PORT, ri, r, iface.port, IDBM_SHOW, num, 1);
+
 	__recinfo_str(NODE_DISC_ADDR, ri, r, disc_address, IDBM_SHOW,
 		      num, 0);
 	__recinfo_int(NODE_DISC_PORT, ri, r, disc_port, IDBM_SHOW,
 		      num, 0);
-	__recinfo_int_o6(NODE_DISC_TYPE, ri, r, disc_type,
-			 IDBM_SHOW, "send_targets", "offload_send_targets",
-			 "slp", "isns", "static", "fw", num, 0);
+	__recinfo_int_o6(NODE_DISC_TYPE, ri, r, disc_type, IDBM_SHOW,
+			 "send_targets", "isns", "offload_send_targets", "slp",
+			 "static", "fw", num, 0);
 	__recinfo_int(SESSION_INIT_CMDSN, ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_INIT_LOGIN_RETRY, ri, r,
@@ -301,6 +298,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.cmds_max, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_QDEPTH, ri, r,
 		       session.queue_depth, IDBM_SHOW, num, 1);
+	__recinfo_int(SESSION_NR_SESSIONS, ri, r,
+		       session.nr_sessions, IDBM_SHOW, num, 1);
 	__recinfo_int_o2(SESSION_AUTH_METHOD, ri, r, session.auth.authmethod,
 			 IDBM_SHOW, "None", "CHAP", num, 1);
 	__recinfo_str(SESSION_USERNAME, ri, r,
@@ -323,6 +322,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_LU_RESET_TMO, ri, r,
 		      session.err_timeo.lu_reset_timeout,
+		      IDBM_SHOW, num, 1);
+	__recinfo_int(SESSION_TGT_RESET_TMO, ri, r,
+		      session.err_timeo.tgt_reset_timeout,
 		      IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_HOST_RESET_TMO, ri, r,
 		      session.err_timeo.host_reset_timeout,
@@ -384,6 +386,10 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_timeout,
 				IDBM_SHOW, num, 1);
 
+		sprintf(key, CONN_MAX_XMIT_DLEN, i);
+		__recinfo_int(key, ri, r,
+			conn[i].iscsi.MaxXmitDataSegmentLength, IDBM_SHOW,
+			num, 1);
 		sprintf(key, CONN_MAX_RECV_DLEN, i);
 		__recinfo_int(key, ri, r,
 			conn[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW,
@@ -416,6 +422,51 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, transport_name,
 		      IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_INAME, ri, r, iname, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_BOOT_PROTO, ri, r, bootproto, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_SUBNET_MASK, ri, r, subnet_mask,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_GATEWAY, ri, r, gateway, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, ipv6_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r, linklocal_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, router_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL, ri, r, ipv6_linklocal,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER, ri, r, ipv6_router, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_STATE, ri, r, state, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_VLAN_ID, ri, r, vlan_id, IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_VLAN_PRIORITY, ri, r, vlan_priority,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_VLAN_STATE, ri, r, vlan_state, IDBM_SHOW, num, 1);
+	__recinfo_int(IFACE_NUM, ri, r, iface_num, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_MTU, ri, r, mtu, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_PORT, ri, r, port, IDBM_SHOW, num, 1);
+}
+
+static void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri)
+{
+	int num = 0;
+
+	__recinfo_uint16(HOST_AUTH_INDEX, ri, r, chap_tbl_idx, IDBM_SHOW,
+			 num, 1);
+
+	if (r->chap_type == CHAP_TYPE_OUT) {
+		__recinfo_str(HOST_AUTH_USERNAME, ri, r, username, IDBM_SHOW,
+			      num, 0);
+		__recinfo_str(HOST_AUTH_PASSWORD, ri, r, password, IDBM_MASKED,
+			      num, 1);
+		__recinfo_int(HOST_AUTH_PASSWORD_LEN, ri, r, password_length,
+			      IDBM_HIDE, num, 1);
+	} else {
+		__recinfo_str(HOST_AUTH_USERNAME_IN, ri, r, username, IDBM_SHOW,
+			      num, 0);
+		__recinfo_str(HOST_AUTH_PASSWORD_IN, ri, r, password,
+			      IDBM_MASKED, num, 1);
+		__recinfo_int(HOST_AUTH_PASSWORD_IN_LEN, ri, r, password_length,
+			      IDBM_HIDE, num, 1);
+	}
 }
 
 recinfo_t *idbm_recinfo_alloc(int max_keys)
@@ -448,6 +499,9 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 	case IDBM_PRINT_TYPE_IFACE:
 		idbm_recinfo_iface((struct iface_rec *)rec, info);
 		break;
+	case IDBM_PRINT_TYPE_HOST_CHAP:
+		idbm_recinfo_host_chap((struct iscsi_chap_rec *)rec, info);
+		break;
 	}
 
 	fprintf(f, "%s\n", ISCSI_BEGIN_REC);
@@ -473,13 +527,41 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 }
 
 static void
+idbm_setup_session_defaults(struct iscsi_session_operational_config *conf)
+{
+	conf->InitialR2T = 0;
+	conf->ImmediateData = 1;
+	conf->FirstBurstLength = DEF_INI_FIRST_BURST_LEN;
+	conf->MaxBurstLength = DEF_INI_MAX_BURST_LEN;
+	conf->DefaultTime2Wait = ISCSI_DEF_TIME2WAIT;
+	conf->DefaultTime2Retain = 0;
+	conf->MaxConnections = 1;
+	conf->MaxOutstandingR2T = 1;
+	conf->ERL = 0;
+	conf->FastAbort = 1;
+}
+
+static void idbm_setup_conn_defaults(struct iscsi_conn_operational_config *conf)
+{
+	conf->MaxXmitDataSegmentLength = 0;
+	conf->MaxRecvDataSegmentLength = DEF_INI_MAX_RECV_SEG_LEN;
+	conf->HeaderDigest = CONFIG_DIGEST_NEVER;
+	conf->DataDigest = CONFIG_DIGEST_NEVER;
+	conf->IFMarker = 0;
+	conf->OFMarker = 0;
+}
+
+static void
 idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 {
 	memset(rec, 0, sizeof(discovery_rec_t));
 
 	rec->startup = ISCSI_STARTUP_MANUAL;
 	rec->type = type;
-	if (type == DISCOVERY_TYPE_SENDTARGETS) {
+	switch (type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
+		rec->u.sendtargets.discoveryd_poll_inval = 30;
+		rec->u.sendtargets.use_discoveryd = 0;
 		rec->u.sendtargets.reopen_max = 5;
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
@@ -487,9 +569,13 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.conn_timeo.login_timeout=15;
 		rec->u.sendtargets.conn_timeo.auth_timeout = 45;
 		rec->u.sendtargets.conn_timeo.active_timeout=30;
-		rec->u.sendtargets.iscsi.MaxRecvDataSegmentLength =
+		idbm_setup_session_defaults(&rec->u.sendtargets.session_conf);
+		idbm_setup_conn_defaults(&rec->u.sendtargets.conn_conf);
+		/* override def setting */
+		rec->u.sendtargets.conn_conf.MaxRecvDataSegmentLength =
 						DEF_INI_DISC_MAX_RECV_SEG_LEN;
-	} else if (type == DISCOVERY_TYPE_SLP) {
+		break;
+	case DISCOVERY_TYPE_SLP:
 		rec->u.slp.interfaces = NULL;
 		rec->u.slp.scopes = NULL;
 		rec->u.slp.poll_interval = 5 * 60;	/* 5 minutes */
@@ -497,8 +583,13 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.slp.auth.password_length = 0;
 		rec->u.slp.auth.password_in_length = 0;
 		rec->u.slp.auth.password_in_length = 0;
-	} else if (type == DISCOVERY_TYPE_ISNS) {
-		/* to be implemented */
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		rec->u.isns.use_discoveryd = 0;
+		rec->u.isns.discoveryd_poll_inval = -1;
+		break;
+	default:
+		break;
 	}
 }
 
@@ -513,6 +604,7 @@ setup_passwd_len:
 	for (i=0; i<MAX_KEYS; i++) {
 		if (!strcmp(name, info[i].name)) {
 			int j;
+
 			log_debug(7, "updated '%s', '%s' => '%s'", name,
 				  info[i].value, value);
 			/* parse recinfo by type */
@@ -521,6 +613,20 @@ setup_passwd_len:
 					continue;
 
 				*(int*)info[i].data =
+					strtoul(value, NULL, 10);
+				goto updated;
+			} else if (info[i].type == TYPE_UINT8) {
+				if (!info[i].data)
+					continue;
+
+				*(uint8_t *)info[i].data =
+					strtoul(value, NULL, 10);
+				goto updated;
+			} else if (info[i].type == TYPE_UINT16) {
+				if (!info[i].data)
+					continue;
+
+				*(uint16_t *)info[i].data =
 					strtoul(value, NULL, 10);
 				goto updated;
 			} else if (info[i].type == TYPE_STR) {
@@ -545,12 +651,15 @@ setup_passwd_len:
 					    "unknown value format '%s' for "
 					    "parameter name '%s'",
 					    line_number, value, name);
+			} else {
+				log_error("unknown value format '%s' for "
+					  "parameter name '%s'", value, name);
 			}
 			break;
 		}
 	}
 
-	return 1;
+	return ISCSI_ERR_INVAL;
 
 updated:
 	strlcpy((char*)info[i].value, value, VALUE_MAXVAL);
@@ -591,12 +700,12 @@ int idbm_verify_param(recinfo_t *info, char *name)
 		else {
 			log_error("Cannot modify %s. It is used to look up "
 				  "the record and cannot be changed.", name);
-			return EINVAL;
+			return ISCSI_ERR_INVAL;
 		}
 	}
 
 	log_error("Cannot modify %s. Invalid param name.", name);
-	return EINVAL;
+	return ISCSI_ERR_INVAL;
 }
 
 void idbm_recinfo_config(recinfo_t *info, FILE *f)
@@ -662,7 +771,7 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 		}
 		*(value+i) = 0;
 
-		(void)idbm_rec_update_param(info, name, value, line_number);
+		idbm_rec_update_param(info, name, value, line_number);
 	} while (line);
 }
 
@@ -764,6 +873,13 @@ int idbm_print_iface_info(void *data, struct iface_rec *iface)
 	return 0;
 }
 
+int idbm_print_host_chap_info(struct iscsi_chap_rec *chap)
+{
+	/* User only calls this to print chap so always print */
+	idbm_print(IDBM_PRINT_TYPE_HOST_CHAP, chap, 1, stdout);
+	return 0;
+}
+
 int idbm_print_node_flat(void *data, node_rec_t *rec)
 {
 	if (strchr(rec->conn[0].address, '.'))
@@ -816,19 +932,19 @@ get_params_from_disc_link(char *link, char **target, char **tpgt,
 	(*target) = link;
 	*address = strchr(*target, ',');
 	if (!(*address))
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	*(*address)++ = '\0';
 	*port = strchr(*address, ',');
 	if (!(*port))
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	*(*port)++ = '\0';
 	*tpgt = strchr(*port, ',');
 	if (!(*tpgt))
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	*(*tpgt)++ = '\0';
 	*ifaceid = strchr(*tpgt, ',');
 	if (!(*ifaceid))
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	*(*ifaceid)++ = '\0';
 	return 0;
 }
@@ -844,8 +960,9 @@ int idbm_lock(void)
 
 	if (access(LOCK_DIR, F_OK) != 0) {
 		if (mkdir(LOCK_DIR, 0660) != 0) {
-			log_error("Could not open %s. Exiting\n", LOCK_DIR);
-			return errno;
+			log_error("Could not open %s: %s\n", LOCK_DIR,
+				  strerror(errno));
+			return ISCSI_ERR_IDBM;
 		}
 	}
 
@@ -862,7 +979,7 @@ int idbm_lock(void)
 			log_error("Maybe you are not root?");
 			log_error("Could not lock discovery DB: %s: %s",
 					LOCK_WRITE_FILE, strerror(errno));
-			return errno;
+			return ISCSI_ERR_IDBM;
 		} else if (i == 0)
 			log_debug(2, "Waiting for discovery DB lock");
 
@@ -915,7 +1032,7 @@ static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	rc = idbm_lock();
 	if (rc)
@@ -923,8 +1040,9 @@ static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
 
 	f = fopen(conf, "r");
 	if (!f) {
-		log_debug(5, "Could not open %s err %d\n", conf, errno);
-		rc = errno;
+		log_debug(5, "Could not open %s err %s\n", conf,
+			  strerror(errno));
+		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
 
@@ -951,7 +1069,7 @@ idbm_rec_read(node_rec_t *out_rec, char *targetname, int tpgt,
 
 	portal = calloc(1, PATH_MAX);
 	if (!portal)
-		return ENOMEM;
+		return ISCSI_ERR_IDBM;
 
 	/* try old style portal as config */
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
@@ -964,14 +1082,14 @@ idbm_rec_read(node_rec_t *out_rec, char *targetname, int tpgt,
 		 targetname, ip, port, tpgt, iface->name);
 	log_debug(5, "rec read looking for config file %s.", portal);
 	if (!strlen(iface->name)) {
-		rc = EINVAL;
+		rc = ISCSI_ERR_INVAL;
 		goto free_portal;
 	}
 
 	if (stat(portal, &statb)) {
-		log_debug(5, "Could not stat %s err %d.", portal, errno);
+		log_debug(5, "Could not stat %s: %s.", portal, strerror(errno));
 		free(portal);
-		return errno;
+		return ISCSI_ERR_IDBM;
 	}
 
 read:
@@ -988,7 +1106,8 @@ static int print_discovered_flat(void *data, node_rec_t *rec)
 	if (rec->disc_type != drec->type)
 		goto no_match;
 
-	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
+	if (drec->type == DISCOVERY_TYPE_SENDTARGETS ||
+	    drec->type == DISCOVERY_TYPE_ISNS) {
 		if (rec->disc_port != drec->port ||
 		    strcmp(rec->disc_address, drec->address))
 			goto no_match;
@@ -1013,7 +1132,7 @@ static int print_discovered_tree(void *data, node_rec_t *rec)
 	if (rec->disc_type != drec->type)
 		goto no_match;
 
-	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
+	if (strlen(drec->address)) {
 		if (rec->disc_port != drec->port ||
 		    strcmp(rec->disc_address, drec->address))
 			goto no_match;
@@ -1025,7 +1144,7 @@ no_match:
 	return -1;
 }
 
-int idbm_print_discovered(struct discovery_rec *drec, int info_level)
+static int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 {
 	int num_found = 0;
 
@@ -1045,21 +1164,18 @@ int idbm_print_discovered(struct discovery_rec *drec, int info_level)
 	return num_found;
 }
 
-static int idbm_print_all_st(int info_level)
+static int idbm_for_each_drec(int type, char *config_root, void *data,
+			      idbm_drec_op_fn *fn)
 {
 	DIR *entity_dirfd;
 	struct dirent *entity_dent;
 	int found = 0;
-	char *disc_dir;
+	discovery_rec_t drec;
 	char *tmp_port;
 
-	disc_dir = malloc(PATH_MAX);
-	if (!disc_dir)
-		return 0;
-
-	entity_dirfd = opendir(ST_CONFIG_DIR);
+	entity_dirfd = opendir(config_root);
 	if (!entity_dirfd)
-		goto free_disc;
+		return found;
 
 	while ((entity_dent = readdir(entity_dirfd))) {
 		if (!strcmp(entity_dent->d_name, ".") ||
@@ -1071,31 +1187,75 @@ static int idbm_print_all_st(int info_level)
 		tmp_port = strchr(entity_dent->d_name, ',');
 		if (!tmp_port)
 			continue;
+		/*
+		 * pre 872 tools dumped the target portal symlinks in the isns
+		 * dir instead of the server. If we find one of those links
+		 * (by checking if there is a valid port) we skip it.
+		 */
+		if (strchr(tmp_port, ':') || strchr(tmp_port, '.'))
+			continue;
 		*tmp_port++ = '\0';
 
-		if (info_level >= 1) {
-			struct discovery_rec drec;
-
-			printf("DiscoveryAddress: %s,%s\n",
-				entity_dent->d_name, tmp_port);
-
-			memset(&drec, 0, sizeof(struct discovery_rec));
-			strlcpy(drec.address, entity_dent->d_name,
-				sizeof(drec.address));
-			drec.port = atoi(tmp_port);
-			drec.type = DISCOVERY_TYPE_SENDTARGETS;
-
-			found += idbm_print_discovered(&drec, info_level);
-		} else {
-			printf("%s:%s via sendtargets\n", entity_dent->d_name,
-			       tmp_port);
-			found++;
+		memset(&drec, 0, sizeof(drec));
+		if (idbm_discovery_read(&drec, type, entity_dent->d_name,
+					atoi(tmp_port))) {
+			log_error("Could not read discovery record for "
+				  "%s:%s.", entity_dent->d_name, tmp_port);
+			continue;
 		}
+
+		if (!fn(data, &drec))
+			found++;
 	}
 	closedir(entity_dirfd);
-free_disc:
-	free(disc_dir);
 	return found;
+}
+
+int idbm_for_each_st_drec(void *data, idbm_drec_op_fn *fn)
+{
+	return idbm_for_each_drec(DISCOVERY_TYPE_SENDTARGETS, ST_CONFIG_DIR,
+				  data, fn);
+}
+
+int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn)
+{
+	return idbm_for_each_drec(DISCOVERY_TYPE_ISNS, ISNS_CONFIG_DIR,
+				  data, fn);
+}
+
+static int __idbm_print_all_by_drec(void *data, struct discovery_rec *drec)
+{
+	int info_level = *(int *)data;
+
+	if (info_level >= 1) {
+		printf("DiscoveryAddress: %s,%d\n",
+		       drec->address, drec->port);
+		idbm_print_discovered(drec, info_level);
+	} else
+		printf("%s:%d via %s\n", drec->address, drec->port,
+		       drec->type == DISCOVERY_TYPE_ISNS ?
+		       "isns" : "sendtargets");
+	return 0;
+}
+
+static int idbm_print_all_st(int info_level)
+{
+	int rc;
+
+	rc = idbm_for_each_st_drec(&info_level, __idbm_print_all_by_drec);
+	if (rc < 0)
+		return 0;
+	return rc;
+}
+
+static int idbm_print_all_isns(int info_level)
+{
+	int rc;
+
+	rc = idbm_for_each_isns_drec(&info_level, __idbm_print_all_by_drec);
+	if (rc < 0)
+		return 0;
+	return rc;
 }
 
 int idbm_print_all_discovery(int info_level)
@@ -1103,12 +1263,15 @@ int idbm_print_all_discovery(int info_level)
 	discovery_rec_t *drec;
 	int found = 0, tmp;
 
-	if (info_level < 1)
-		return idbm_print_all_st(info_level);
+	if (info_level < 1) {
+		found = idbm_print_all_st(info_level);
+		found += idbm_print_all_isns(info_level);
+		return found;
+	}
 
 	drec = calloc(1, sizeof(*drec));
 	if (!drec)
-		return ENOMEM;
+		return 0;
 
 	tmp = 0;
 	printf("SENDTARGETS:\n");
@@ -1119,10 +1282,17 @@ int idbm_print_all_discovery(int info_level)
 	tmp = 0;
 
 	printf("iSNS:\n");
-	drec->type = DISCOVERY_TYPE_ISNS;
-	tmp = idbm_print_discovered(drec, info_level);
-	if (!tmp)
-		printf("No targets found.\n");
+	tmp = idbm_print_all_isns(info_level);
+	if (!tmp) {
+		/*
+		 * pre 872 tools did not store the server ip,port so
+		 * we drop down here, to just look for target portals.
+		 */
+		drec->type = DISCOVERY_TYPE_ISNS;
+		tmp = idbm_print_discovered(drec, info_level);
+		if (!tmp)
+			printf("No targets found.\n");
+	}
 	found += tmp;
 	tmp = 0;
 
@@ -1145,9 +1315,21 @@ int idbm_print_all_discovery(int info_level)
 	return found;
 }
 
-/*
- * This iterates over the ifaces in use in the nodes dir.
- * It does not iterate over the ifaces setup in /etc/iscsi/ifaces.
+/**
+ * idbm_for_each_iface - iterate over bound iface recs
+ * @found: nr of recs found so far
+ * @data: data pointer passed to fn
+ * @fn: iterator function ran over each bound iface rec
+ * @targetname: rec's target name
+ * @tpgt: rec's portal group tag
+ * @ip: rec's ip address
+ * @port: rec's port
+ *
+ * This will run fn over all recs with the {targetname,tpgt,ip,port}
+ * id. It does not iterate over the ifaces setup in /etc/iscsi/ifaces.
+ *
+ * fn should return -1 if it skipped the rec, a ISCSI_ERR error code if
+ * the operation failed or 0 if fn was run successfully.
  */
 static int idbm_for_each_iface(int *found, void *data,
 				idbm_iface_op_fn *fn,
@@ -1162,7 +1344,7 @@ static int idbm_for_each_iface(int *found, void *data,
 
 	portal = calloc(1, PATH_MAX);
 	if (!portal)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	if (tpgt >= 0)
 		goto read_iface;
@@ -1172,7 +1354,7 @@ static int idbm_for_each_iface(int *found, void *data,
 		 ip, port);
 	if (stat(portal, &statb)) {
 		log_error("iface iter could not stat %s.", portal);
-		rc = ENODEV;
+		rc = ISCSI_ERR_IDBM;
 		goto free_portal;
 	}
 
@@ -1193,11 +1375,14 @@ read_iface:
 
 	iface_dirfd = opendir(portal);
 	if (!iface_dirfd) {
-		rc = errno;
+		log_error("iface iter could not read dir %s.", portal);
+		rc = ISCSI_ERR_IDBM;
 		goto free_portal;
 	}
 
 	while ((iface_dent = readdir(iface_dirfd))) {
+		int curr_rc;
+
 		if (!strcmp(iface_dent->d_name, ".") ||
 		    !strcmp(iface_dent->d_name, ".."))
 			continue;
@@ -1209,14 +1394,12 @@ read_iface:
 		if (__idbm_rec_read(&rec, portal))
 			continue;
 
+		curr_rc = fn(data, &rec);
 		/* less than zero means it was not a match */
-		rc = fn(data, &rec);
-		if (rc > 0)
-			break;
-		else if (rc == 0)
+		if (curr_rc > 0 && !rc)
+			rc = curr_rc;
+		else if (curr_rc == 0)
 			(*found)++;
-		else 
-			rc = 0;
 	}
 
 	closedir(iface_dirfd);
@@ -1239,17 +1422,18 @@ int idbm_for_each_portal(int *found, void *data, idbm_portal_op_fn *fn,
 
 	portal = calloc(1, PATH_MAX);
 	if (!portal)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, targetname);
 	portal_dirfd = opendir(portal);
 	if (!portal_dirfd) {
-		rc = errno;
+		rc = ISCSI_ERR_IDBM;
 		goto done;
 	}
 
 	while ((portal_dent = readdir(portal_dirfd))) {
 		char *tmp_port, *tmp_tpgt;
+		int curr_rc;
 
 		if (!strcmp(portal_dent->d_name, ".") ||
 		    !strcmp(portal_dent->d_name, ".."))
@@ -1264,11 +1448,12 @@ int idbm_for_each_portal(int *found, void *data, idbm_portal_op_fn *fn,
 		if (tmp_tpgt)
 			*tmp_tpgt++ = '\0';
 
-		rc = fn(found, data, targetname,
+		curr_rc = fn(found, data, targetname,
 			tmp_tpgt ? atoi(tmp_tpgt) : -1,
 			portal_dent->d_name, atoi(tmp_port));
-		if (rc)
-			break;
+		/* less than zero means it was not a match */
+		if (curr_rc > 0 && !rc)
+			rc = curr_rc;
 	}
 	closedir(portal_dirfd);
 done:
@@ -1290,14 +1475,17 @@ int idbm_for_each_node(int *found, void *data, idbm_node_op_fn *fn)
 		return 0;
 
 	while ((node_dent = readdir(node_dirfd))) {
+		int curr_rc;
+
 		if (!strcmp(node_dent->d_name, ".") ||
 		    !strcmp(node_dent->d_name, ".."))
 			continue;
 
 		log_debug(5, "searching %s\n", node_dent->d_name);
-		rc = fn(found, data, node_dent->d_name);
-		if (rc)
-			break;
+		curr_rc = fn(found, data, node_dent->d_name);
+		/* less than zero means it was not a match */
+		if (curr_rc > 0 && !rc)
+			rc = curr_rc;
 	}
 
 	closedir(node_dirfd);
@@ -1334,27 +1522,40 @@ int idbm_for_each_rec(int *found, void *data, idbm_iface_op_fn *fn)
 	return idbm_for_each_node(found, &op_data, node_fn);
 }
 
+static struct {
+	char *config_root;
+	char *config_name;
+} disc_type_to_config_vals[] = {
+	{ ST_CONFIG_DIR, ST_CONFIG_NAME },
+	{ ISNS_CONFIG_DIR, ISNS_CONFIG_NAME },
+};
+
 int
-idbm_discovery_read(discovery_rec_t *out_rec, char *addr, int port)
+idbm_discovery_read(discovery_rec_t *out_rec, int drec_type,
+		    char *addr, int port)
 {
 	recinfo_t *info;
 	char *portal;
 	int rc = 0;
 	FILE *f;
 
+	if (drec_type > 1)
+		return ISCSI_ERR_INVAL;
+
 	memset(out_rec, 0, sizeof(discovery_rec_t));
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	portal = malloc(PATH_MAX);
 	if (!portal) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_info;
 	}
 
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[drec_type].config_root,
 		 addr, port);
 	log_debug(5, "Looking for config file %s\n", portal);
 
@@ -1362,14 +1563,16 @@ idbm_discovery_read(discovery_rec_t *out_rec, char *addr, int port)
 	if (rc)
 		goto free_info;
 
-	f = idbm_open_rec_r(portal, ST_CONFIG_NAME);
+	f = idbm_open_rec_r(portal,
+			    disc_type_to_config_vals[drec_type].config_name);
 	if (!f) {
-		log_debug(1, "Could not open %s err %d\n", portal, errno);
-		rc = errno;
+		log_debug(1, "Could not open %s: %s\n", portal,
+			  strerror(errno));
+		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
 
-	idbm_discovery_setup_defaults(out_rec, DISCOVERY_TYPE_SENDTARGETS);
+	idbm_discovery_setup_defaults(out_rec, drec_type);
 	idbm_recinfo_discovery(out_rec, info);
 	idbm_recinfo_config(info, f);
 	fclose(f);
@@ -1436,14 +1639,15 @@ static int idbm_rec_write(node_rec_t *rec)
 	portal = malloc(PATH_MAX);
 	if (!portal) {
 		log_error("Could not alloc portal\n");
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 	}
 
 	snprintf(portal, PATH_MAX, "%s", NODE_CONFIG_DIR);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make %s\n", portal);
-			rc = errno;
+			log_error("Could not make %s: %s\n", portal,
+				  strerror(errno));
+			rc = ISCSI_ERR_IDBM;
 			goto free_portal;
 		}
 	}
@@ -1451,8 +1655,9 @@ static int idbm_rec_write(node_rec_t *rec)
 	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, rec->name);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make %s\n", portal);
-			rc = errno;
+			log_error("Could not make %s: %s\n", portal,
+				  strerror(errno));
+			rc = ISCSI_ERR_IDBM;
 			goto free_portal;
 		}
 	}
@@ -1493,13 +1698,13 @@ static int idbm_rec_write(node_rec_t *rec)
 		 * Old style portal as a file, but with tpgt. Let's update it.
 		 */
 		if (unlink(portal)) {
-			log_error("Could not convert %s. err %d\n", portal,
-				  errno);
-			rc = errno;
+			log_error("Could not convert %s: %s\n", portal,
+				  strerror(errno));
+			rc = ISCSI_ERR_IDBM;
 			goto unlock;
 		}
 	} else {
-		rc = EINVAL;
+		rc = ISCSI_ERR_INVAL;
 		goto unlock;
 	}	
 
@@ -1508,9 +1713,9 @@ mkdir_portal:
 		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt);
 	if (stat(portal, &statb)) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make dir %s err %d\n",
-				  portal, errno);
-			rc = errno;
+			log_error("Could not make dir %s: %s\n",
+				  portal, strerror(errno));
+			rc = ISCSI_ERR_IDBM;
 			goto unlock;
 		}
 	}
@@ -1521,8 +1726,8 @@ mkdir_portal:
 open_conf:
 	f = fopen(portal, "w");
 	if (!f) {
-		log_error("Could not open %s err %d\n", portal, errno);
-		rc = errno;
+		log_error("Could not open %s: %sd\n", portal, strerror(errno));
+		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
 
@@ -1542,32 +1747,39 @@ idbm_discovery_write(discovery_rec_t *rec)
 	char *portal;
 	int rc = 0;
 
+	if (rec->type > 1)
+		return ISCSI_ERR_INVAL;
+
 	portal = malloc(PATH_MAX);
 	if (!portal) {
 		log_error("Could not alloc portal\n");
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 	}
 
 	rc = idbm_lock();
 	if (rc)
 		goto free_portal;
 
-	snprintf(portal, PATH_MAX, "%s", ST_CONFIG_DIR);
+	snprintf(portal, PATH_MAX, "%s",
+		 disc_type_to_config_vals[rec->type].config_root);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make %s\n", portal);
-			rc = errno;
+			log_error("Could not make %s: %s\n", portal,
+				  strerror(errno));
+			rc = ISCSI_ERR_IDBM;
 			goto unlock;
 		}
 	}
 
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[rec->type].config_root,
 		 rec->address, rec->port);
 
-	f = idbm_open_rec_w(portal, ST_CONFIG_NAME);
+	f = idbm_open_rec_w(portal,
+			    disc_type_to_config_vals[rec->type].config_name);
 	if (!f) {
-		log_error("Could not open %s err %d\n", portal, errno);
-		rc = errno;
+		log_error("Could not open %s: %s\n", portal, strerror(errno));
+		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
 
@@ -1580,26 +1792,23 @@ free_portal:
 	return rc;
 }
 
-int
-idbm_add_discovery(discovery_rec_t *newrec, int overwrite)
+int idbm_add_discovery(discovery_rec_t *newrec)
 {
 	discovery_rec_t rec;
-	int rc;
 
-	if (!idbm_discovery_read(&rec, newrec->address,
+	if (!idbm_discovery_read(&rec, newrec->type, newrec->address,
 				newrec->port)) {
-		if (!overwrite)
-			return 0;
-		log_debug(7, "overwriting existing record");
+		log_debug(7, "disc rec already exists");
+		/* fall through */
 	} else
 		log_debug(7, "adding new DB record");
 
-	rc = idbm_discovery_write(newrec);
-	return rc;
+	return idbm_discovery_write(newrec);
 }
 
 static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 {
+	struct stat statb;
 	int rc = 0;
 
 	switch (rec->disc_type) {
@@ -1614,9 +1823,9 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 	case DISCOVERY_TYPE_FW:
 		if (access(FW_CONFIG_DIR, F_OK) != 0) {
 			if (mkdir(FW_CONFIG_DIR, 0660) != 0) {
-				log_error("Could not make %s\n",
-					  FW_CONFIG_DIR);
-				rc = errno;
+				log_error("Could not make %s: %s",
+					  FW_CONFIG_DIR, strerror(errno));
+				rc = ISCSI_ERR_IDBM;
 			}
 		}
 
@@ -1628,9 +1837,9 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 	case DISCOVERY_TYPE_STATIC:
 		if (access(STATIC_CONFIG_DIR, F_OK) != 0) {
 			if (mkdir(STATIC_CONFIG_DIR, 0660) != 0) {
-				log_error("Could not make %s\n",
-					  STATIC_CONFIG_DIR);
-				rc = errno;
+				log_error("Could not make %s; %s",
+					  STATIC_CONFIG_DIR, strerror(errno));
+				rc = ISCSI_ERR_IDBM;
 			}
 		}
 
@@ -1642,20 +1851,56 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 	case DISCOVERY_TYPE_ISNS:
 		if (access(ISNS_CONFIG_DIR, F_OK) != 0) {
 			if (mkdir(ISNS_CONFIG_DIR, 0660) != 0) {
-				log_error("Could not make %s\n",
-					  ISNS_CONFIG_DIR);
-				rc = errno;
+				log_error("Could not make %s: %s",
+					  ISNS_CONFIG_DIR, strerror(errno));
+				rc = ISCSI_ERR_IDBM;
 			}
 		}
 
+		/*
+		 * Older tools lumped all portals together in the
+		 * isns config dir. In 2.0-872, the isns dir added
+		 * a isns server (ddress and port) dir like sendtargets.
+		 *
+		 * If we found a older style link we return that so it
+		 * can be removed. If this function is called for
+		 * addition of a rec then the older link should have been
+		 * removed and we break down below.
+		 */
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%d,%s",
 			 ISNS_CONFIG_DIR,
 			 rec->name, rec->conn[0].address,
 			 rec->conn[0].port, rec->tpgt, rec->iface.name);
+		if (!stat(disc_portal, &statb)) {
+			log_debug(7, "using old style isns dir %s.",
+				  disc_portal);
+			break;
+		}
+
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%d",
+			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port);
+		if (!stat(disc_portal, &statb) && S_ISDIR(statb.st_mode)) {
+			/*
+			 * if there is a dir for this isns server then
+			 * assume we are using the new style links
+			 */
+			snprintf(disc_portal, PATH_MAX,
+				 "%s/%s,%d/%s,%s,%d,%d,%s",
+				 ISNS_CONFIG_DIR, rec->disc_address,
+				 rec->disc_port, rec->name,
+				 rec->conn[0].address, rec->conn[0].port,
+				 rec->tpgt, rec->iface.name);
+			break;
+		}
+
+		/* adding a older link */
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%d,%s",
+			 ISNS_CONFIG_DIR, rec->name, rec->conn[0].address,
+			 rec->conn[0].port, rec->tpgt, rec->iface.name);
 		break;
 	case DISCOVERY_TYPE_SLP:
 	default:
-		rc = EINVAL;
+		rc = ISCSI_ERR_INVAL;
 	}
 
 	return rc;
@@ -1696,7 +1941,7 @@ int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 
 	node_portal = calloc(2, PATH_MAX);
 	if (!node_portal)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	disc_portal = node_portal + PATH_MAX;
 	snprintf(node_portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
@@ -1718,9 +1963,10 @@ int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 			log_debug(7, "link from %s to %s exists", node_portal,
 				  disc_portal);
 		else {
-			rc = errno;
+			rc = ISCSI_ERR_IDBM;
 			log_error("Could not make link from disc source %s to "
-				 "node %s", disc_portal, node_portal);
+				 "node %s: %s", disc_portal, node_portal,
+				 strerror(errno));
 		}
 	}
 	idbm_unlock();
@@ -1730,16 +1976,17 @@ free_portal:
 }
 
 static int idbm_bind_iface_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
-				    struct discovery_rec *drec,
-				    struct iface_rec *iface,
+				    void *data, struct iface_rec *iface,
 				    struct list_head *bound_recs)
 {
 	struct node_rec *rec, *tmp;
 	struct list_head new_recs;
+	int rc;
 
 	INIT_LIST_HEAD(&new_recs);
-	if (disc_node_fn(drec, iface, &new_recs))
-		return ENODEV;
+	rc = disc_node_fn(data, iface, &new_recs);
+	if (rc)
+		return rc;
 
 	list_for_each_entry_safe(rec, tmp, &new_recs, list) {
 		list_del_init(&rec->list);
@@ -1749,22 +1996,36 @@ static int idbm_bind_iface_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 	return 0;
 }
 
+static int
+discovery_error_fatal(int err)
+{
+	switch (err) {
+	/* No error */
+	case ISCSI_SUCCESS:
+	/* Transport errors or timeouts are not fatal */
+	case ISCSI_ERR_TRANS:
+	case ISCSI_ERR_TRANS_TIMEOUT:
+		return 0;
+	}
+	return 1;
+}
+
 int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
-			      struct discovery_rec *drec,
-			      struct list_head *ifaces,
+			      void *data, struct list_head *ifaces,
 			      struct list_head *bound_recs)
 {
-	struct iface_rec *iface, *tmp;
+	struct list_head def_ifaces;
+	struct node_rec *rec, *tmp_rec;
+	struct iface_rec *iface, *tmp_iface;
 	struct iscsi_transport *t;
 	int rc = 0, found = 0;
 
-	if (!ifaces || list_empty(ifaces)) {
-		struct list_head def_ifaces;
+	INIT_LIST_HEAD(&def_ifaces);
 
-		INIT_LIST_HEAD(&def_ifaces);
+	if (!ifaces || list_empty(ifaces)) {
 		iface_link_ifaces(&def_ifaces);
 
-		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
+		list_for_each_entry_safe(iface, tmp_iface, &def_ifaces, list) {
 			list_del(&iface->list);
 			t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
 			/*
@@ -1777,11 +2038,11 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 				continue;
 			}
 
-			rc = idbm_bind_iface_to_nodes(disc_node_fn, drec, iface,
+			rc = idbm_bind_iface_to_nodes(disc_node_fn, data, iface,
 						      bound_recs);
 			free(iface);
-			if (rc)
-				return rc;
+			if (discovery_error_fatal(rc))
+				goto fail;
 			found = 1;
 		}
 
@@ -1789,10 +2050,9 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 		if (!found) {
 			struct iface_rec def_iface;
 
-			//log_error("no ifaces using default\n");
 			memset(&def_iface, 0, sizeof(struct iface_rec));
 			iface_setup_defaults(&def_iface);
-			return idbm_bind_iface_to_nodes(disc_node_fn, drec,
+			return idbm_bind_iface_to_nodes(disc_node_fn, data,
 							&def_iface, bound_recs);
 		}
 	} else {
@@ -1806,72 +2066,25 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 				continue;
 			}
 
-			rc = idbm_bind_iface_to_nodes(disc_node_fn, drec, iface,
+			rc = idbm_bind_iface_to_nodes(disc_node_fn, data, iface,
 						      bound_recs);
-			if (rc)
-				return rc;
+			if (discovery_error_fatal(rc))
+				goto fail;
 		}
 	}
 	return 0;
-}
 
-/*
- * remove this when isns is converted
- */
-int idbm_add_nodes(node_rec_t *newrec, discovery_rec_t *drec,
-		   struct list_head *ifaces, int update)
-{
-	struct iface_rec *iface, *tmp;
-	struct iscsi_transport *t;
-	int rc = 0, found = 0;
-
-	if (!ifaces || list_empty(ifaces)) {
-		struct list_head def_ifaces;
-
-		INIT_LIST_HEAD(&def_ifaces);
-		iface_link_ifaces(&def_ifaces);
-
-		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
-			list_del(&iface->list);
-			t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
-			/* only auto bind to software iscsi */
-			if (!t || strcmp(t->name, DEFAULT_TRANSPORT) ||
-			     !strcmp(iface->name, DEFAULT_IFACENAME)) {
-				free(iface);
-				continue;
-			}
-
-			iface_copy(&newrec->iface, iface);
-			rc = idbm_add_node(newrec, drec, update);
-			free(iface);
-			if (rc)
-				return rc;
-			found = 1;
-		}
-
-		/* create default iface with old/default behavior */
-		if (!found) {
-			iface_setup_defaults(&newrec->iface);
-			return idbm_add_node(newrec, drec, update);
-		}
-	} else {
-		list_for_each_entry(iface, ifaces, list) {
-			if (strcmp(iface->name, DEFAULT_IFACENAME) &&
-			    !iface_is_valid(iface)) {
-				log_error("iface %s is not valid. Will not "
-					  "bind node to it. Iface settings "
-					  iface_fmt, iface->name,
-					  iface_str(iface));
-				continue;
-			}
-
-			iface_copy(&newrec->iface, iface);
-			rc = idbm_add_node(newrec, drec, update);
-			if (rc)
-				return rc;
-		}
+fail:	
+	list_for_each_entry_safe(iface, tmp_iface, &def_ifaces, list) {
+		list_del(&iface->list);
+		free(iface);
 	}
-	return 0;
+
+	list_for_each_entry_safe(rec, tmp_rec, bound_recs, list) {
+		list_del(&rec->list);
+		free(rec);
+	}
+	return rc;
 }
 
 static void idbm_rm_disc_node_links(char *disc_dir)
@@ -1932,9 +2145,10 @@ int idbm_delete_discovery(discovery_rec_t *drec)
 
 	portal = calloc(1, PATH_MAX);
 	if (!portal)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[drec->type].config_root,
 		 drec->address, drec->port);
 	log_debug(5, "Removing config file %s\n", portal);
 
@@ -1946,21 +2160,25 @@ int idbm_delete_discovery(discovery_rec_t *drec)
 
 	if (S_ISDIR(statb.st_mode)) {
 		strlcat(portal, "/", PATH_MAX);
-		strlcat(portal, ST_CONFIG_NAME, PATH_MAX);
+		strlcat(portal,
+			disc_type_to_config_vals[drec->type].config_name,
+			PATH_MAX);
 	}
 
 	if (unlink(portal))
 		log_debug(5, "Could not remove %s err %d\n", portal, errno);
 
 	memset(portal, 0, PATH_MAX);
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[drec->type].config_root,
 		 drec->address, drec->port);
 	idbm_rm_disc_node_links(portal);
 
 	/* rm portal dir */
 	if (S_ISDIR(statb.st_mode)) {
 		memset(portal, 0, PATH_MAX);
-		snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+		snprintf(portal, PATH_MAX, "%s/%s,%d",
+			 disc_type_to_config_vals[drec->type].config_root,
 			 drec->address, drec->port);
 		rmdir(portal);
 	}
@@ -1984,7 +2202,7 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 
 	tmprec = malloc(sizeof(*tmprec));
 	if (!tmprec)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	memset(portal, 0, PATH_MAX);
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
@@ -1998,8 +2216,8 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 		goto done;
 	}
 
-	log_debug(7, "found drec %s %d\n", tmprec->disc_address,
-		 tmprec->disc_port); 
+	log_debug(7, "found drec %s %d\n",
+		  tmprec->disc_address, tmprec->disc_port);
 	/* rm link from discovery source to node */
 	memset(portal, 0, PATH_MAX);
 	rc = setup_disc_to_node_link(portal, tmprec);
@@ -2012,9 +2230,9 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 
 	if (!stat(portal, &statb)) {
 		if (unlink(portal)) {
-			log_error("Could not remove link %s err %d\n",
-				  portal, errno);
-			rc = errno;
+			log_error("Could not remove link %s: %s\n",
+				  portal, strerror(errno));
+			rc = ISCSI_ERR_IDBM;
 		} else
 			log_debug(7, "rmd %s", portal);
 	} else
@@ -2040,7 +2258,7 @@ int idbm_delete_node(node_rec_t *rec)
 
 	portal = calloc(1, PATH_MAX);
 	if (!portal)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	rc = idbm_remove_disc_to_node_link(rec, portal);
 	if (rc)
@@ -2067,15 +2285,15 @@ int idbm_delete_node(node_rec_t *rec)
 	if (!stat(portal, &statb))
 		goto rm_conf;
 
-	log_error("Could not stat %s to delete node err %d\n",
-		  portal, errno);
-	rc = errno;
+	log_error("Could not stat %s to delete node: %s\n",
+		  portal, strerror(errno));
+	rc = ISCSI_ERR_IDBM;
 	goto unlock;
 
 rm_conf:
 	if (unlink(portal)) {
-		log_error("Could not remove %s err %d\n", portal, errno);
-		rc = errno;
+		log_error("Could not remove %s: %s\n", portal, strerror(errno));
+		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
 
@@ -2123,33 +2341,122 @@ idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg)
 }
 
 void
+idbm_isns_defaults(struct iscsi_isns_config *cfg)
+{
+	idbm_sync_config();
+	memcpy(cfg, &db->drec_isns.u.isns,
+	       sizeof(struct iscsi_isns_config));
+}
+
+void
 idbm_slp_defaults(struct iscsi_slp_config *cfg)
 {
 	memcpy(cfg, &db->drec_slp.u.slp,
 	       sizeof(struct iscsi_slp_config));
 }
 
+struct user_param *idbm_alloc_user_param(char *name, char *value)
+{
+	struct user_param *param;
+
+	param = calloc(1, sizeof(*param));
+	if (!param)
+		return NULL;
+
+	INIT_LIST_HEAD(&param->list);
+
+	param->name = strdup(name);
+	if (!param->name)
+		goto free_param;
+
+	param->value = strdup(value);
+	if (!param->value)
+		goto free_name;
+
+	return param;
+
+free_name:
+	free(param->name);
+free_param:
+	free(param);
+	return NULL;
+}
+
+int idbm_node_set_rec_from_param(struct list_head *params, node_rec_t *rec,
+				 int verify)
+{
+	struct user_param *param;
+	recinfo_t *info;
+	int rc = 0;
+
+	if (list_empty(params))
+		return 0;
+
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
+		return ISCSI_ERR_NOMEM;
+
+	idbm_recinfo_node(rec, info);
+
+	if (verify) {
+		list_for_each_entry(param, params, list) {
+			rc = idbm_verify_param(info, param->name);
+			if (rc)
+				goto free_info;
+		}
+	}
+
+	list_for_each_entry(param, params, list) {
+		rc = idbm_rec_update_param(info, param->name, param->value, 0);
+		if (rc) {
+			if (rc == ISCSI_ERR_INVAL)
+				log_error("Unknown parameter %s.", param->name);
+			goto free_info;
+		}
+	}
+
+free_info:
+	free(info);
+	return rc;
+}
+
 int idbm_node_set_param(void *data, node_rec_t *rec)
 {
-	struct db_set_param *param = data;
+	int rc;
+
+	rc = idbm_node_set_rec_from_param(data, rec, 1);
+	if (rc)
+		return rc;
+
+	return idbm_rec_write(rec);
+}
+
+int idbm_discovery_set_param(void *data, discovery_rec_t *rec)
+{
+	struct list_head *params = data;
+	struct user_param *param;
 	recinfo_t *info;
 	int rc = 0;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
-	idbm_recinfo_node(rec, info);
+	idbm_recinfo_discovery((discovery_rec_t *)rec, info);
 
-	rc = idbm_verify_param(info, param->name);
-	if (rc)
-		goto free_info;
+	list_for_each_entry(param, params, list) {
+		rc = idbm_verify_param(info, param->name);
+		if (rc)
+			goto free_info;
+	}
 
-	rc = idbm_rec_update_param(info, param->name, param->value, 0);
-	if (rc)
-		goto free_info;
+	list_for_each_entry(param, params, list) {
+		rc = idbm_rec_update_param(info, param->name, param->value, 0);
+		if (rc)
+			goto free_info;
+	}
 
-	rc = idbm_rec_write(rec);
+	rc = idbm_discovery_write((discovery_rec_t *)rec);
 	if (rc)
 		goto free_info;
 
@@ -2172,7 +2479,7 @@ int idbm_init(idbm_get_config_file_fn *fn)
 	db = malloc(sizeof(idbm_t));
 	if (!db) {
 		log_error("out of memory on idbm allocation");
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 	}
 	memset(db, 0, sizeof(idbm_t));
 	db->get_config_file = fn;
@@ -2183,4 +2490,151 @@ void idbm_terminate(void)
 {
 	if (db)
 		free(db);
+}
+
+/**
+ * idbm_create_rec - allocate and setup a node record
+ * @targetname: target name
+ * @tgpt: target portal group
+ * @ip: ip address of portal
+ * @port: port of portal
+ * @iface: iscsi iface info
+ * @verbose: flag indicating whether to log ifaces setup errors
+ *
+ * The iface only needs to have the name set. This function will
+ * read in the other values.
+ */
+struct node_rec *idbm_create_rec(char *targetname, int tpgt, char *ip,
+				 int port, struct iface_rec *iface,
+				 int verbose)
+{
+	struct node_rec *rec;
+
+	rec = calloc(1, sizeof(*rec));
+	if (!rec) {
+		log_error("Could not not allocate memory to create node "
+			  "record.");
+		return NULL;
+	}
+
+	idbm_node_setup_defaults(rec);
+	if (targetname)
+		strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
+	rec->tpgt = tpgt;
+	rec->conn[0].port = port;
+	if (ip)
+		strlcpy(rec->conn[0].address, ip, NI_MAXHOST);
+	memset(&rec->iface, 0, sizeof(struct iface_rec));
+	if (iface) {
+		iface_copy(&rec->iface, iface);
+		if (strlen(iface->name)) {
+			if (iface_conf_read(&rec->iface)) {
+				if (verbose)
+					log_error("Could not read iface info "
+						  "for %s.", iface->name);
+				goto free_rec;
+			}
+		}
+	}
+	return rec;
+free_rec:
+	free(rec);
+	return NULL;
+}
+
+struct node_rec *idbm_create_rec_from_boot_context(struct boot_context *context)
+{
+	struct node_rec *rec;
+
+	/* tpgt hard coded to 1 ??? */
+	rec = idbm_create_rec(context->targetname, 1,
+			      context->target_ipaddr, context->target_port,
+			      NULL, 1);
+	if (!rec) {
+		log_error("Could not setup rec for fw discovery login.");
+		return NULL;
+	}
+
+	iface_setup_defaults(&rec->iface);
+	strlcpy(rec->session.auth.username, context->chap_name,
+		sizeof(context->chap_name));
+	strlcpy((char *)rec->session.auth.password, context->chap_password,
+		sizeof(context->chap_password));
+	strlcpy(rec->session.auth.username_in, context->chap_name_in,
+		sizeof(context->chap_name_in));
+	strlcpy((char *)rec->session.auth.password_in,
+		context->chap_password_in,
+		sizeof(context->chap_password_in));
+	rec->session.auth.password_length =
+				strlen((char *)context->chap_password);
+	rec->session.auth.password_in_length =
+				strlen((char *)context->chap_password_in);
+
+	iface_setup_from_boot_context(&rec->iface, context);
+
+	return rec;
+}
+
+void idbm_node_setup_defaults(node_rec_t *rec)
+{
+	int i;
+
+	memset(rec, 0, sizeof(node_rec_t));
+
+	INIT_LIST_HEAD(&rec->list);
+
+	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
+	rec->disc_type = DISCOVERY_TYPE_STATIC;
+	rec->leading_login = 0;
+	rec->session.cmds_max = CMDS_MAX;
+	rec->session.xmit_thread_priority = XMIT_THREAD_PRIORITY;
+	rec->session.initial_cmdsn = 0;
+	rec->session.queue_depth = QUEUE_DEPTH;
+	rec->session.nr_sessions = 1;
+	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
+	rec->session.reopen_max = 32;
+	rec->session.auth.authmethod = 0;
+	rec->session.auth.password_length = 0;
+	rec->session.auth.password_in_length = 0;
+	rec->session.err_timeo.abort_timeout = DEF_ABORT_TIMEO;
+	rec->session.err_timeo.lu_reset_timeout = DEF_LU_RESET_TIMEO;
+	rec->session.err_timeo.tgt_reset_timeout = DEF_TGT_RESET_TIMEO;
+	rec->session.err_timeo.host_reset_timeout = DEF_HOST_RESET_TIMEO;
+	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
+	rec->session.info = NULL;
+	rec->session.sid = 0;
+	rec->session.multiple = 0;
+	idbm_setup_session_defaults(&rec->session.iscsi);
+
+	for (i=0; i<ISCSI_CONN_MAX; i++) {
+		rec->conn[i].startup = ISCSI_STARTUP_MANUAL;
+		rec->conn[i].port = ISCSI_LISTEN_PORT;
+		rec->conn[i].tcp.window_size = TCP_WINDOW_SIZE;
+		rec->conn[i].tcp.type_of_service = 0;
+		rec->conn[i].timeo.login_timeout= DEF_LOGIN_TIMEO;
+		rec->conn[i].timeo.logout_timeout= DEF_LOGOUT_TIMEO;
+		rec->conn[i].timeo.auth_timeout = 45;
+
+		rec->conn[i].timeo.noop_out_interval = DEF_NOOP_OUT_INTERVAL;
+		rec->conn[i].timeo.noop_out_timeout = DEF_NOOP_OUT_TIMEO;
+
+		idbm_setup_conn_defaults(&rec->conn[i].iscsi);
+	}
+
+	iface_setup_defaults(&rec->iface);
+}
+
+struct node_rec *
+idbm_find_rec_in_list(struct list_head *rec_list, char *targetname, char *addr,
+		      int port, struct iface_rec *iface)
+{
+	struct node_rec *rec;
+
+	list_for_each_entry(rec, rec_list, list) {
+		if (__iscsi_match_session(rec, targetname, addr, port, iface,
+					  MATCH_ANY_SID))
+			return rec;
+	}
+
+	return NULL;
 }

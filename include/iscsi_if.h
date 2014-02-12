@@ -21,7 +21,17 @@
 #ifndef ISCSI_IF_H
 #define ISCSI_IF_H
 
+#ifdef __KERNEL__
+#include <linux/in.h>
+#include <linux/in6.h>
+#else
+#include <netinet/in.h>
+#endif
+
 #include "iscsi_proto.h"
+
+#define ISCSI_NL_GRP_ISCSID	1
+#define ISCSI_NL_GRP_UIP	2
 
 #define UEVENT_BASE			10
 #define KEVENT_BASE			100
@@ -53,6 +63,14 @@ enum iscsi_uevent_e {
 	ISCSI_UEVENT_CREATE_BOUND_SESSION		= UEVENT_BASE + 18,
 	ISCSI_UEVENT_TRANSPORT_EP_CONNECT_THROUGH_HOST	= UEVENT_BASE + 19,
 
+	ISCSI_UEVENT_PATH_UPDATE	= UEVENT_BASE + 20,
+	ISCSI_UEVENT_SET_IFACE_PARAMS	= UEVENT_BASE + 21,
+	ISCSI_UEVENT_PING		= UEVENT_BASE + 22,
+	ISCSI_UEVENT_GET_CHAP		= UEVENT_BASE + 23,
+	ISCSI_UEVENT_DELETE_CHAP	= UEVENT_BASE + 24,
+
+	ISCSI_UEVENT_MAX		= ISCSI_UEVENT_DELETE_CHAP,
+
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
 	ISCSI_KEVENT_CONN_ERROR		= KEVENT_BASE + 2,
@@ -60,12 +78,27 @@ enum iscsi_uevent_e {
 	ISCSI_KEVENT_DESTROY_SESSION	= KEVENT_BASE + 4,
 	ISCSI_KEVENT_UNBIND_SESSION	= KEVENT_BASE + 5,
 	ISCSI_KEVENT_CREATE_SESSION	= KEVENT_BASE + 6,
+
+	ISCSI_KEVENT_PATH_REQ		= KEVENT_BASE + 7,
+	ISCSI_KEVENT_IF_DOWN		= KEVENT_BASE + 8,
+	ISCSI_KEVENT_CONN_LOGIN_STATE   = KEVENT_BASE + 9,
+	ISCSI_KEVENT_HOST_EVENT		= KEVENT_BASE + 10,
+	ISCSI_KEVENT_PING_COMP		= KEVENT_BASE + 11,
+
+	ISCSI_KEVENT_MAX		= ISCSI_KEVENT_PING_COMP,
 };
 
 enum iscsi_tgt_dscvr {
 	ISCSI_TGT_DSCVR_SEND_TARGETS	= 1,
 	ISCSI_TGT_DSCVR_ISNS		= 2,
 	ISCSI_TGT_DSCVR_SLP		= 3,
+};
+
+enum iscsi_host_event_code {
+	ISCSI_EVENT_LINKUP		= 1,
+	ISCSI_EVENT_LINKDOWN,
+	/* must always be last */
+	ISCSI_EVENT_MAX,
 };
 
 struct iscsi_uevent {
@@ -159,6 +192,33 @@ struct iscsi_uevent {
 			uint32_t	param; /* enum iscsi_host_param */
 			uint32_t	len;
 		} set_host_param;
+		struct msg_set_path {
+			uint32_t	host_no;
+		} set_path;
+		struct msg_set_iface_params {
+			uint32_t	host_no;
+			uint32_t	count;
+		} set_iface_params;
+		struct msg_iscsi_ping {
+			uint32_t	host_no;
+			uint32_t	iface_num;
+			uint32_t	iface_type;
+			uint32_t	payload_size;
+			uint32_t	pid;	/* unique ping id associated
+						   with each ping request */
+		} iscsi_ping;
+		struct msg_get_chap {
+			uint32_t	host_no;
+			uint32_t	num_entries; /* number of CHAP entries
+						      * on request, number of
+						      * valid CHAP entries on
+						      * response */
+			uint16_t	chap_tbl_idx;
+		} get_chap;
+		struct msg_delete_chap {
+			uint32_t	host_no;
+			uint16_t	chap_tbl_idx;
+		} delete_chap;
 	} u;
 	union {
 		/* messages k -> u */
@@ -180,6 +240,11 @@ struct iscsi_uevent {
 			uint32_t	cid;
 			uint64_t	recv_handle;
 		} recv_req;
+		struct msg_conn_login {
+			uint32_t	sid;
+			uint32_t	cid;
+			uint32_t	state; /* enum iscsi_conn_state */
+		} conn_login;
 		struct msg_conn_error {
 			uint32_t	sid;
 			uint32_t	cid;
@@ -192,8 +257,130 @@ struct iscsi_uevent {
 		struct msg_transport_connect_ret {
 			uint64_t	handle;
 		} ep_connect_ret;
+		struct msg_req_path {
+			uint32_t	host_no;
+		} req_path;
+		struct msg_notify_if_down {
+			uint32_t	host_no;
+		} notify_if_down;
+		struct msg_host_event {
+			uint32_t	host_no;
+			uint32_t	data_size;
+			enum iscsi_host_event_code code;
+		} host_event;
+		struct msg_ping_comp {
+			uint32_t	host_no;
+			uint32_t	status; /* enum
+						 * iscsi_ping_status_code */
+			uint32_t	pid;	/* unique ping id associated
+						   with each ping request */
+			uint32_t	data_size;
+		} ping_comp;
 	} r;
 } __attribute__ ((aligned (sizeof(uint64_t))));
+
+enum iscsi_param_type {
+	ISCSI_PARAM,		/* iscsi_param (session, conn, target, LU) */
+	ISCSI_HOST_PARAM,	/* iscsi_host_param */
+	ISCSI_NET_PARAM,	/* iscsi_net_param */
+};
+
+struct iscsi_iface_param_info {
+	uint32_t iface_num;	/* iface number, 0 - n */
+	uint32_t len;		/* Actual length of the param */
+	uint16_t param;		/* iscsi param value */
+	uint8_t iface_type;	/* IPv4 or IPv6 */
+	uint8_t param_type;	/* iscsi_param_type */
+	uint8_t value[0];	/* length sized value follows */
+} __packed;
+
+/*
+ * To keep the struct iscsi_uevent size the same for userspace code
+ * compatibility, the main structure for ISCSI_UEVENT_PATH_UPDATE and
+ * ISCSI_KEVENT_PATH_REQ is defined separately and comes after the
+ * struct iscsi_uevent in the NETLINK_ISCSI message.
+ */
+struct iscsi_path {
+	uint64_t	handle;
+	uint8_t		mac_addr[6];
+	uint8_t		mac_addr_old[6];
+	uint32_t	ip_addr_len;	/* 4 or 16 */
+	union {
+		struct in_addr	v4_addr;
+		struct in6_addr	v6_addr;
+	} src;
+	union {
+		struct in_addr	v4_addr;
+		struct in6_addr	v6_addr;
+	} dst;
+	uint16_t	vlan_id;
+	uint16_t	pmtu;
+} __attribute__ ((aligned (sizeof(uint64_t))));
+
+/* iscsi iface enabled/disabled setting */
+#define ISCSI_IFACE_DISABLE	0x01
+#define ISCSI_IFACE_ENABLE	0x02
+
+/* ipv4 bootproto */
+#define ISCSI_BOOTPROTO_STATIC		0x01
+#define ISCSI_BOOTPROTO_DHCP		0x02
+
+/* ipv6 addr autoconfig type */
+#define ISCSI_IPV6_AUTOCFG_DISABLE		0x01
+#define ISCSI_IPV6_AUTOCFG_ND_ENABLE		0x02
+#define ISCSI_IPV6_AUTOCFG_DHCPV6_ENABLE	0x03
+
+/* ipv6 link local addr type */
+#define ISCSI_IPV6_LINKLOCAL_AUTOCFG_ENABLE	0x01
+#define ISCSI_IPV6_LINKLOCAL_AUTOCFG_DISABLE	0x02
+
+/* ipv6 router addr type */
+#define ISCSI_IPV6_ROUTER_AUTOCFG_ENABLE	0x01
+#define ISCSI_IPV6_ROUTER_AUTOCFG_DISABLE	0x02
+
+#define ISCSI_IFACE_TYPE_IPV4		0x01
+#define ISCSI_IFACE_TYPE_IPV6		0x02
+
+#define ISCSI_MAX_VLAN_ID		4095
+#define ISCSI_MAX_VLAN_PRIORITY		7
+
+/* iscsi vlan enable/disabled setting */
+#define ISCSI_VLAN_DISABLE	0x01
+#define ISCSI_VLAN_ENABLE	0x02
+
+/* iSCSI network params */
+enum iscsi_net_param {
+	ISCSI_NET_PARAM_IPV4_ADDR		= 1,
+	ISCSI_NET_PARAM_IPV4_SUBNET		= 2,
+	ISCSI_NET_PARAM_IPV4_GW			= 3,
+	ISCSI_NET_PARAM_IPV4_BOOTPROTO		= 4,
+	ISCSI_NET_PARAM_MAC			= 5,
+	ISCSI_NET_PARAM_IPV6_LINKLOCAL		= 6,
+	ISCSI_NET_PARAM_IPV6_ADDR		= 7,
+	ISCSI_NET_PARAM_IPV6_ROUTER		= 8,
+	ISCSI_NET_PARAM_IPV6_ADDR_AUTOCFG	= 9,
+	ISCSI_NET_PARAM_IPV6_LINKLOCAL_AUTOCFG	= 10,
+	ISCSI_NET_PARAM_IPV6_ROUTER_AUTOCFG	= 11,
+	ISCSI_NET_PARAM_IFACE_ENABLE		= 12,
+	ISCSI_NET_PARAM_VLAN_ID			= 13,
+	ISCSI_NET_PARAM_VLAN_PRIORITY		= 14,
+	ISCSI_NET_PARAM_VLAN_ENABLED		= 15,
+	ISCSI_NET_PARAM_VLAN_TAG		= 16,
+	ISCSI_NET_PARAM_IFACE_TYPE		= 17,
+	ISCSI_NET_PARAM_IFACE_NAME		= 18,
+	ISCSI_NET_PARAM_MTU			= 19,
+	ISCSI_NET_PARAM_PORT			= 20,
+};
+
+enum iscsi_conn_state {
+	ISCSI_CONN_STATE_FREE,
+	ISCSI_CONN_STATE_XPT_WAIT,
+	ISCSI_CONN_STATE_IN_LOGIN,
+	ISCSI_CONN_STATE_LOGGED_IN,
+	ISCSI_CONN_STATE_IN_LOGOUT,
+	ISCSI_CONN_STATE_LOGOUT_REQUESTED,
+	ISCSI_CONN_STATE_CLEANUP_WAIT,
+};
 
 /*
  * Common error codes
@@ -220,6 +407,8 @@ enum iscsi_err {
 	ISCSI_ERR_NO_SCSI_CMD		= ISCSI_ERR_BASE + 17,
 	ISCSI_ERR_INVALID_HOST		= ISCSI_ERR_BASE + 18,
 	ISCSI_ERR_XMIT_FAILED		= ISCSI_ERR_BASE + 19,
+	ISCSI_ERR_TCP_CONN_CLOSE	= ISCSI_ERR_BASE + 20,
+	ISCSI_ERR_SCSI_EH_SESSION_RST	= ISCSI_ERR_BASE + 21,
 };
 
 /*
@@ -248,7 +437,7 @@ enum iscsi_param {
 	ISCSI_PARAM_PERSISTENT_PORT,
 	ISCSI_PARAM_SESS_RECOVERY_TMO,
 
-	/* pased in through bind conn using transport_fd */
+	/* passed in through bind conn using transport_fd */
 	ISCSI_PARAM_CONN_PORT,
 	ISCSI_PARAM_CONN_ADDRESS,
 
@@ -268,6 +457,9 @@ enum iscsi_param {
 	ISCSI_PARAM_IFACE_NAME,
 	ISCSI_PARAM_ISID,
 	ISCSI_PARAM_INITIATOR_NAME,
+
+	ISCSI_PARAM_TGT_RESET_TMO,
+	ISCSI_PARAM_TARGET_ALIAS,
 	/* must always be last */
 	ISCSI_PARAM_MAX,
 };
@@ -307,6 +499,8 @@ enum iscsi_param {
 #define ISCSI_IFACE_NAME		(1ULL << ISCSI_PARAM_IFACE_NAME)
 #define ISCSI_ISID			(1ULL << ISCSI_PARAM_ISID)
 #define ISCSI_INITIATOR_NAME		(1ULL << ISCSI_PARAM_INITIATOR_NAME)
+#define ISCSI_TGT_RESET_TMO		(1ULL << ISCSI_PARAM_TGT_RESET_TMO)
+#define ISCSI_TARGET_ALIAS		(1ULL << ISCSI_PARAM_TARGET_ALIAS)
 
 /* iSCSI HBA params */
 enum iscsi_host_param {
@@ -321,6 +515,20 @@ enum iscsi_host_param {
 #define ISCSI_HOST_INITIATOR_NAME	(1ULL << ISCSI_HOST_PARAM_INITIATOR_NAME)
 #define ISCSI_HOST_NETDEV_NAME		(1ULL << ISCSI_HOST_PARAM_NETDEV_NAME)
 #define ISCSI_HOST_IPADDRESS		(1ULL << ISCSI_HOST_PARAM_IPADDRESS)
+
+/* iSCSI PING status/error code */
+enum iscsi_ping_status_code {
+	ISCSI_PING_SUCCESS			= 0,
+	ISCSI_PING_FW_DISABLED			= 0x1,
+	ISCSI_PING_IPADDR_INVALID		= 0x2,
+	ISCSI_PING_LINKLOCAL_IPV6_ADDR_INVALID	= 0x3,
+	ISCSI_PING_TIMEOUT			= 0x4,
+	ISCSI_PING_INVALID_DEST_ADDR		= 0x5,
+	ISCSI_PING_OVERSIZE_PACKET		= 0x6,
+	ISCSI_PING_ICMP_ERROR			= 0x7,
+	ISCSI_PING_MAX_REQ_EXCEEDED		= 0x8,
+	ISCSI_PING_NO_ARP_RECEIVED		= 0x9,
+};
 
 #define iscsi_ptr(_handle) ((void*)(unsigned long)_handle)
 #define iscsi_handle(_ptr) ((uint64_t)(unsigned long)_ptr)
@@ -343,6 +551,7 @@ enum iscsi_host_param {
 #define CAP_DIGEST_OFFLOAD	0x1000	/* offload hdr and data digests */
 #define CAP_PADDING_OFFLOAD	0x2000	/* offload padding insertion, removal,
 					 and verification */
+#define CAP_LOGIN_OFFLOAD	0x4000  /* offload normal session login */
 
 /*
  * These flags describes reason of stop_conn() call
@@ -401,6 +610,22 @@ struct iscsi_stats {
 	uint32_t custom_length;
 	struct iscsi_stats_custom custom[0]
 		__attribute__ ((aligned (sizeof(uint64_t))));
+};
+
+enum chap_type_e {
+	CHAP_TYPE_OUT,
+	CHAP_TYPE_IN,
+};
+
+#define ISCSI_CHAP_AUTH_NAME_MAX_LEN	256
+#define ISCSI_CHAP_AUTH_SECRET_MAX_LEN	256
+
+struct iscsi_chap_rec {
+	uint16_t chap_tbl_idx;
+	enum chap_type_e chap_type;
+	char username[ISCSI_CHAP_AUTH_NAME_MAX_LEN];
+	uint8_t password[ISCSI_CHAP_AUTH_SECRET_MAX_LEN];
+	uint8_t password_length;
 };
 
 #endif
