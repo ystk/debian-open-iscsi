@@ -21,10 +21,78 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <stddef.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/route.h>
 
 #include "fw_context.h"
 #include "fwparam.h"
 #include "idbm_fields.h"
+#include "iscsi_net_util.h"
+#include "iscsi_err.h"
+#include "config.h"
+#include "iface.h"
+
+/**
+ * fw_setup_nics - setup nics (ethXs) based on ibft net info
+ *
+ * Currently does not support vlans.
+ *
+ * If this is a offload card, this function does nothing. The
+ * net info is used by the iscsi iface settings for the iscsi
+ * function.
+ */
+int fw_setup_nics(void)
+{
+	struct boot_context *context;
+	struct list_head targets;
+	char *iface_prev = NULL, transport[16];
+	int needs_bringup = 0, ret = 0, err;
+
+	INIT_LIST_HEAD(&targets);
+
+	ret = fw_get_targets(&targets);
+	if (ret || list_empty(&targets)) {
+		printf("Could not setup fw entries.\n");
+		return ISCSI_ERR_NO_OBJS_FOUND;
+	}
+
+	/*
+	 * For each target in iBFT bring up required NIC and use routing
+	 * to force iSCSI traffic through correct NIC
+	 */
+	list_for_each_entry(context, &targets, list) {			
+	        /* if it is a offload nic ignore it */
+	        if (!net_get_transport_name_from_netdev(context->iface,
+							transport))
+			continue;
+
+		if (iface_prev == NULL || strcmp(context->iface, iface_prev)) {
+			/* Note: test above works because there is a
+ 			 * maximum of two targets in the iBFT
+ 			 */
+			iface_prev = context->iface;
+			needs_bringup = 1;
+		}
+
+		err = net_setup_netdev(context->iface, context->ipaddr,
+				       context->mask, context->gateway,
+				       context->target_ipaddr, needs_bringup);
+		if (err)
+			ret = err;
+	}
+
+	fw_free_targets(&targets);
+	if (ret)
+		return ISCSI_ERR;
+	else
+		return 0;
+}
 
 /**
  * fw_get_entry - return boot context of portal used for boot
@@ -40,8 +108,7 @@ int fw_get_entry(struct boot_context *context)
 
 	ret = fwparam_ppc_boot_info(context);
 	if (ret)
-		ret = fwparam_ibft_sysfs_boot_info(context);
-
+		ret = fwparam_sysfs_boot_info(context);
 	return ret;
 }
 
@@ -62,8 +129,7 @@ int fw_get_targets(struct list_head *list)
 
 	ret = fwparam_ppc_get_targets(list);
 	if (ret)
-		ret = fwparam_ibft_sysfs_get_targets(list);
-
+		ret = fwparam_sysfs_get_targets(list);
 	return ret;
 }
 
@@ -82,11 +148,19 @@ void fw_free_targets(struct list_head *list)
 
 static void dump_initiator(struct boot_context *context)
 {
+	struct iface_rec iface;
+
+	memset(&iface, 0, sizeof(iface));
+	iface_setup_defaults(&iface);
+	iface_setup_from_boot_context(&iface, context);
+
 	if (strlen(context->initiatorname))
 		printf("%s = %s\n", IFACE_INAME, context->initiatorname);
 
 	if (strlen(context->isid))
 		printf("%s = %s\n", IFACE_ISID, context->isid);
+
+	printf("%s = %s\n", IFACE_TRANSPORTNAME, iface.transport_name);
 }
 
 static void dump_target(struct boot_context *context)
@@ -136,7 +210,7 @@ static void dump_network(struct boot_context *context)
 	if (strlen(context->secondary_dns))
 		printf("%s = %s\n", IFACE_SEC_DNS, context->secondary_dns);
 	if (strlen(context->vlan))
-		printf("%s = %s\n", IFACE_VLAN, context->vlan);
+		printf("%s = %s\n", IFACE_VLAN_ID, context->vlan);
 	if (strlen(context->iface))
 		printf("%s = %s\n", IFACE_NETNAME, context->iface);
 }

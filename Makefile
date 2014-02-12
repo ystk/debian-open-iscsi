@@ -24,9 +24,10 @@ IFACEFILES = etc/iface.example
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
 # over multiple makefile.
 
-all: user kernel
+all: user
 
-user: ;
+user: utils/open-isns/Makefile
+	$(MAKE) -C utils/open-isns
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
@@ -39,6 +40,9 @@ user: ;
 	@echo "Built boot tool:                     usr/iscsistart"
 	@echo
 	@echo "Read README file for detailed information."
+
+utils/open-isns/Makefile: utils/open-isns/configure utils/open-isns/Makefile.in
+	cd utils/open-isns; ./configure CFLAGS="$(OPTFLAGS)" --with-security=no
 
 kernel: force
 	$(MAKE) -C kernel
@@ -57,6 +61,8 @@ clean:
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
+	$(MAKE) -C utils/open-isns clean
+	$(MAKE) -C utils/open-isns distclean
 
 # this is for safety
 # now -jXXX will still be safe
@@ -65,7 +71,7 @@ clean:
 	install_initd_suse install_initd_redhat install_initd_debian \
 	install_etc install_iface install_doc install_kernel install_iname
 
-install: install_kernel install_programs install_doc install_etc \
+install: install_programs install_doc install_etc \
 	install_initd install_iname install_iface
 
 install_user: install_programs install_doc install_etc \
@@ -123,9 +129,9 @@ install_kernel:
 
 install_iname:
 	if [ ! -f /etc/iscsi/initiatorname.iscsi ]; then \
-		echo "InitiatorName=`/sbin/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi ; \
+		echo "InitiatorName=`$(DESTDIR)/sbin/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
 		echo "***************************************************" ; \
-		echo "Setting InitiatorName to `cat /etc/iscsi/initiatorname.iscsi`" ; \
+		echo "Setting InitiatorName to `cat $(DESTDIR)/etc/iscsi/initiatorname.iscsi`" ; \
 		echo "To override edit /etc/iscsi/initiatorname.iscsi" ; \
 		echo "***************************************************" ; \
 	fi

@@ -3,7 +3,6 @@
 #include <errno.h>
 
 #include "list.h"
-#include "util.h"
 #include "log.h"
 #include "iscsi_sysfs.h"
 #include "version.h"
@@ -13,6 +12,8 @@
 #include "transport.h"
 #include "initiator.h"
 #include "iface.h"
+#include "iscsid_req.h"
+#include "iscsi_err.h"
 
 int session_info_create_list(void *data, struct session_info *info)
 {
@@ -25,7 +26,7 @@ int session_info_create_list(void *data, struct session_info *info)
 
 	new = calloc(1, sizeof(*new));
 	if (!new)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 	memcpy(new, info, sizeof(*new));
 	INIT_LIST_HEAD(&new->list);
 
@@ -107,13 +108,13 @@ static int print_iscsi_state(int sid, char *prefix)
 	req.command = MGMT_IPC_SESSION_INFO;
 	req.u.session.sid = sid;
 
-	err = do_iscsid(&req, &rsp);
+	err = iscsid_exec_req(&req, &rsp, 1);
 	/*
 	 * for drivers like qla4xxx, iscsid does not display
 	 * anything here since it does not know about it.
 	 */
 	if (!err && rsp.u.session_state.conn_state >= 0 &&
-	    rsp.u.session_state.conn_state <= STATE_CLEANUP_WAIT)
+	    rsp.u.session_state.conn_state <= ISCSI_CONN_STATE_CLEANUP_WAIT)
 		state = conn_state[rsp.u.session_state.conn_state];
 	printf("%s\t\tiSCSI Connection State: %s\n", prefix,
 	       state ? state : "Unknown");
@@ -223,7 +224,7 @@ static int print_scsi_state(int sid, char *prefix, unsigned int flags)
 }
 
 void session_info_print_tree(struct list_head *list, char *prefix,
-			     unsigned int flags)
+			     unsigned int flags, int do_show)
 {
 	struct session_info *curr, *prev = NULL;
 
@@ -277,6 +278,70 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 			printf("%s\t\tSID: %d\n", prefix, curr->sid);
 			print_iscsi_state(curr->sid, prefix);
 		}
+		if (flags & SESSION_INFO_ISCSI_TIM) {
+			printf("%s\t\t*********\n", prefix);
+			printf("%s\t\tTimeouts:\n", prefix);
+			printf("%s\t\t*********\n", prefix);
+
+			printf("%s\t\tRecovery Timeout: %d\n", prefix,
+			      ((curr->tmo).recovery_tmo));
+
+			if ((curr->tmo).tgt_reset_tmo >= 0)
+				printf("%s\t\tTarget Reset Timeout: %d\n",
+					prefix,
+					((curr->tmo).tgt_reset_tmo));
+			else
+				printf("%s\t\tTarget Reset Timeout: %s\n",
+					prefix, UNKNOWN_VALUE);
+
+			if ((curr->tmo).lu_reset_tmo >= 0)
+				printf("%s\t\tLUN Reset Timeout: %d\n", prefix,
+					((curr->tmo).lu_reset_tmo));
+			else
+				printf("%s\t\tLUN Reset Timeout: %s\n", prefix,
+					UNKNOWN_VALUE);
+
+			if ((curr->tmo).lu_reset_tmo >= 0)
+				printf("%s\t\tAbort Timeout: %d\n", prefix,
+					((curr->tmo).abort_tmo));
+			else
+				printf("%s\t\tAbort Timeout: %s\n", prefix,
+					UNKNOWN_VALUE);
+
+		}
+		if (flags & SESSION_INFO_ISCSI_AUTH) {
+			printf("%s\t\t*****\n", prefix);
+			printf("%s\t\tCHAP:\n", prefix);
+			printf("%s\t\t*****\n", prefix);
+			if (!do_show) {
+				strcpy(curr->chap.password, "********");
+				strcpy(curr->chap.password_in, "********");
+			}
+			if (strlen((curr->chap).username))
+				printf("%s\t\tusername: %s\n", prefix,
+					(curr->chap).username);
+			else
+				printf("%s\t\tusername: %s\n", prefix,
+					UNKNOWN_VALUE);
+			if (strlen((curr->chap).password))
+				printf("%s\t\tpassword: %s\n", prefix,
+					(curr->chap).password);
+			else
+				printf("%s\t\tpassword: %s\n", prefix,
+					UNKNOWN_VALUE);
+			if (strlen((curr->chap).username_in))
+				printf("%s\t\tusername_in: %s\n", prefix,
+					(curr->chap).username_in);
+			else
+				printf("%s\t\tusername_in: %s\n", prefix,
+					UNKNOWN_VALUE);
+			if (strlen((curr->chap).password_in))
+				printf("%s\t\tpassword_in: %s\n", prefix,
+					(curr->chap).password_in);
+			else
+				printf("%s\t\tpassword_in: %s\n", prefix,
+					UNKNOWN_VALUE);
+		}
 
 		if (flags & SESSION_INFO_ISCSI_PARAMS)
 			print_iscsi_params(curr->sid, prefix);
@@ -288,7 +353,7 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 	}
 }
 
-int session_info_print(int info_level, struct session_info *info)
+int session_info_print(int info_level, struct session_info *info, int do_show)
 {
 	struct list_head list;
 	int num_found = 0, err = 0;
@@ -316,17 +381,18 @@ int session_info_print(int info_level, struct session_info *info)
 		flags |= (SESSION_INFO_SCSI_DEVS | SESSION_INFO_HOST_DEVS);
 		/* fall through */
 	case 2:
-		flags |= SESSION_INFO_ISCSI_PARAMS;
+		flags |= (SESSION_INFO_ISCSI_PARAMS | SESSION_INFO_ISCSI_TIM
+				| SESSION_INFO_ISCSI_AUTH);
 		/* fall through */
 	case 1:
 		INIT_LIST_HEAD(&list);
 		struct session_link_info link_info;
 
-		flags |= (SESSION_INFO_ISCSI_STATE |SESSION_INFO_IFACE);
+		flags |= (SESSION_INFO_ISCSI_STATE | SESSION_INFO_IFACE);
 		if (info) {
 			INIT_LIST_HEAD(&info->list);
 			list_add_tail(&list, &info->list);
-			session_info_print_tree(&list, "", flags);
+			session_info_print_tree(&list, "", flags, do_show);
 			num_found = 1;
 			break;
 		}
@@ -341,18 +407,20 @@ int session_info_print(int info_level, struct session_info *info)
 		if (err || !num_found)
 			break;
 
-		session_info_print_tree(&list, "", flags);
+		session_info_print_tree(&list, "", flags, do_show);
 		session_info_free_list(&list);
 		break;
 	default:
 		log_error("Invalid info level %d. Try 0 - 3.", info_level);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	if (err) {
 		log_error("Can not get list of active sessions (%d)", err);
 		return err;
-	} else if (!num_found)
+	} else if (!num_found) {
 		log_error("No active sessions.");
+		return ISCSI_ERR_NO_OBJS_FOUND;
+	}
 	return 0;
 }
