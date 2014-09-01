@@ -324,12 +324,32 @@ int iscsi_host_set_params(struct iscsi_session *session)
 	return 0;
 }
 
-#define MAX_SESSION_PARAMS 32
+static inline void iscsi_session_clear_param(struct iscsi_session *session,
+					     int param)
+{
+	session->param_mask &= ~(1ULL << param);
+}
+
+void iscsi_session_init_params(struct iscsi_session *session)
+{
+	session->param_mask = ~0ULL;
+	if (!(session->t->caps & CAP_MULTI_R2T))
+		iscsi_session_clear_param(session, ISCSI_PARAM_MAX_R2T);
+	if (!(session->t->caps & CAP_HDRDGST))
+		iscsi_session_clear_param(session, ISCSI_PARAM_HDRDGST_EN); 
+	if (!(session->t->caps & CAP_DATADGST))
+		iscsi_session_clear_param(session, ISCSI_PARAM_DATADGST_EN); 
+	if (!(session->t->caps & CAP_MARKERS)) {
+		iscsi_session_clear_param(session, ISCSI_PARAM_IFMARKER_EN);
+		iscsi_session_clear_param(session, ISCSI_PARAM_OFMARKER_EN);
+	}
+}
+
+#define MAX_SESSION_PARAMS 35
 
 int iscsi_session_set_params(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
-	struct iscsi_transport *t = session->t;
 	int i, rc;
 	uint32_t one = 1, zero = 0;
 	struct connparam {
@@ -496,25 +516,27 @@ int iscsi_session_set_params(struct iscsi_conn *conn)
 			.param = ISCSI_PARAM_INITIATOR_NAME,
 			.value = session->initiator_name,
 			.type = ISCSI_STRING,
+		}, {
+			.param = ISCSI_PARAM_BOOT_ROOT,
+			.value = session->nrec.session.boot_root,
+			.type = ISCSI_STRING,
+		}, {
+			.param = ISCSI_PARAM_BOOT_NIC,
+			.value = session->nrec.session.boot_nic,
+			.type = ISCSI_STRING,
+		}, {
+			.param = ISCSI_PARAM_BOOT_TARGET,
+			.value = session->nrec.session.boot_target,
+			.type = ISCSI_STRING,
 		},
 	};
 
-	session->param_mask = ~0ULL;
-	if (!(t->caps & CAP_MULTI_R2T))
-		session->param_mask &= ~ISCSI_MAX_R2T;
-	if (!(t->caps & CAP_HDRDGST))
-		session->param_mask &= ~ISCSI_HDRDGST_EN;
-	if (!(t->caps & CAP_DATADGST))
-		session->param_mask &= ~ISCSI_DATADGST_EN;
-	if (!(t->caps & CAP_MARKERS)) {
-		session->param_mask &= ~ISCSI_IFMARKER_EN;
-		session->param_mask &= ~ISCSI_OFMARKER_EN;
-	}
+	iscsi_session_init_params(session);
 
 	/* some llds will send nops internally */
 	if (!iscsi_sysfs_session_supports_nop(session->id)) {
-		session->param_mask &= ~ISCSI_PING_TMO;
-		session->param_mask &= ~ISCSI_RECV_TMO;
+		iscsi_session_clear_param(session, ISCSI_PARAM_PING_TMO); 
+		iscsi_session_clear_param(session, ISCSI_PARAM_RECV_TMO);
 	}
 
 	/* Entered full-feature phase! */
@@ -562,6 +584,36 @@ TODO handle this
 	return 0;
 }
 
+int iscsi_set_net_config(struct iscsi_transport *t, iscsi_session_t *session,
+			 struct iface_rec *iface)
+{
+	if (t->template->set_net_config) {
+		/* uip needs the netdev name */
+		struct host_info hinfo;
+		int hostno, rc;
+
+		/* this assumes that the netdev or hw address is going to be
+		   set */
+		hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
+		if (rc) {
+			log_debug(4, "Couldn't get host no.\n");
+			return rc;
+		}
+
+		/* uip needs the netdev name */
+		if (!strlen(iface->netdev)) {
+			memset(&hinfo, 0, sizeof(hinfo));
+			hinfo.host_no = hostno;
+			iscsi_sysfs_get_hostinfo_by_host_no(&hinfo);
+			strcpy(iface->netdev, hinfo.iface.netdev);
+		}
+
+		return t->template->set_net_config(t, iface, session);
+	}
+
+	return 0;
+}
+
 int iscsi_host_set_net_params(struct iface_rec *iface,
 			      struct iscsi_session *session)
 {
@@ -599,6 +651,10 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 	if (net_ifup_netdev(netdev))
 		log_warning("Could not brining up netdev %s. Try running "
 			    "'ifup %s' first if login fails.", netdev, netdev);
+
+	rc = iscsi_set_net_config(t, session, iface);
+	if (rc != 0)
+		return rc;
 
 	rc = host_set_param(t, session->hostno,
 			    ISCSI_HOST_PARAM_IPADDRESS,

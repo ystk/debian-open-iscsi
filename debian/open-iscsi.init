@@ -15,6 +15,7 @@ ADM=/usr/bin/iscsiadm
 PIDFILE=/var/run/iscsid.pid
 NAMEFILE=/etc/iscsi/initiatorname.iscsi
 CONFIGFILE=/etc/iscsi/iscsid.conf
+OMITDIR=/run/sendsigs.omit.d
 
 [ -x "$DAEMON" ] || exit 0
 
@@ -99,6 +100,7 @@ start() {
 	modprobe -q ib_iser 2>/dev/null || :
 	start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON
 	RETVAL=$?
+	ln -s $PIDFILE $OMITDIR
 	log_end_msg $RETVAL
 
 	starttargets
@@ -126,9 +128,16 @@ start() {
 	MOUNT_RESULT=1
 	if mount -a -O _netdev >/dev/null 2>&1; then
 		MOUNT_RESULT=0
-		break
 	fi
 	log_end_msg $MOUNT_RESULT
+
+	# Also enable any new swap devices (network) that popped up.
+	log_daemon_msg "Enabling network swap devices"
+	SWAP_RESULT=1
+	if swapon -a -e >/dev/null 2>&1; then
+		SWAP_RESULT=0
+	fi
+	log_end_msg $SWAP_RESULT
 }
 
 starttargets() {

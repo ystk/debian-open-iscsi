@@ -1,0 +1,14 @@
+We are out of time for Jessie. Re-target for Jessie + 1
+Index: open-iscsi/Makefile
+===================================================================
+--- open-iscsi.orig/Makefile	2013-11-05 20:53:59.489421548 +0530
++++ open-iscsi/Makefile	2013-11-05 21:38:25.117374573 +0530
+@@ -32,7 +32,7 @@
+ 	$(MAKE) -C utils/fwparam_ibft
+ 	$(MAKE) -C usr
+ 	$(MAKE) -C utils
+-	$(MAKE) -C iscsiuio
++	#$(MAKE) -C iscsiuio
+ 	@echo
+ 	@echo "Compilation complete                 Output file"
+ 	@echo "-----------------------------------  ----------------"

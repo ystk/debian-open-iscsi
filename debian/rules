@@ -10,7 +10,7 @@ export DH_OPTIONS
 DEB_UPSTREAM_VERSION=$(shell dpkg-parsechangelog | sed -rne 's,^Version: ([^-]+).*,\1,p')
 
 DEB_HOST_ARCH?=$(shell dpkg-architecture -qDEB_HOST_ARCH)
-SUPPORTED_ARCH_UDEB = amd64 i386 ia64 mips mipsel powerpc
+SUPPORTED_ARCH_UDEB = amd64 arm64 i386 ia64 mips mipsel powerpc
 
 get-orig-source:
 	[ ! -f $(ORIG_FILE).gz ] || rm -f $(ORIG_FILE).gz
@@ -26,10 +26,18 @@ else
 	CFLAGS += -O2
 endif
 
+# For Hardening
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+#
+
 configure: configure-stamp
 configure-stamp:
 	dh_testdir
 	# Add here commands to configure the package.
+	dh_autotools-dev_updateconfig
+	dh_autoreconf
 
 	touch configure-stamp
 
@@ -65,6 +73,8 @@ clean:
 	$(MAKE) -C utils clean
 	rm -rf modules
 
+	dh_autotools-dev_restoreconfig
+	dh_autoreconf_clean
 	dh_clean 
 
 install: install-arch

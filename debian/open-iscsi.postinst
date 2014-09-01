@@ -31,6 +31,7 @@ case "$1" in
 	fi
 
 	update_initramfs
+	invoke-rc.d open-iscsi start
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

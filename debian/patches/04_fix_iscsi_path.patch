@@ -1,8 +1,8 @@
 Fix path for iscsid as we ship it in /usr/sbin
 Index: open-iscsi/etc/iscsid.conf
 ===================================================================
---- open-iscsi.orig/etc/iscsid.conf	2012-04-07 20:18:02.891543275 +0530
-+++ open-iscsi/etc/iscsid.conf	2012-04-24 09:36:41.058624577 +0530
+--- open-iscsi.orig/etc/iscsid.conf	2013-11-05 20:56:42.941418667 +0530
++++ open-iscsi/etc/iscsid.conf	2013-11-05 20:56:42.941418667 +0530
 @@ -20,7 +20,7 @@
  # iscsid.startup = /etc/rc.d/init.d/iscsid force-start
  # 

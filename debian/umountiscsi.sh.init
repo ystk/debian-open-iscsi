@@ -55,6 +55,10 @@ do_stop () {
 		fi
 		for BLOCK_FILE in $SESSION_DIR/target*/*\:*/block/*; do
 			BLOCK_DEV=`echo "$BLOCK_FILE" | sed 's/.*block\///'`
+			if [ "${BLOCK_DEV}" = "*" ];then
+				log_warning_msg "iSCSI target without block devices found"
+				continue
+			fi
 			DOS_PARTITIONS="`awk "/^\/dev\/$BLOCK_DEV/ { print \\$2; }" < /proc/mounts`"
 			for DEVICE in $DOS_PARTITIONS; do
 				#log_progress_msg $DEVICE

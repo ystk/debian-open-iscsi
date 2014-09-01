@@ -894,7 +894,6 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 				   struct boot_context *context)
 {
 	struct iscsi_transport *t = NULL;
-	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	uint32_t hostno;
 
 	if (strlen(context->initiatorname))
@@ -910,12 +909,18 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 	} else if (strlen(context->iface)) {
 /* this ifdef is only temp until distros and firmwares are updated */
 #ifdef OFFLOAD_BOOT_SUPPORTED
+		char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
+		int rc;
 
 		memset(transport_name, 0, ISCSI_TRANSPORT_NAME_MAXLEN);
 		/* make sure offload driver is loaded */
 		if (!net_get_transport_name_from_netdev(context->iface,
 							transport_name))
 			t = iscsi_sysfs_get_transport_by_name(transport_name);
+
+		if (net_ifup_netdev(context->iface))
+			log_warning("Could not bring up netdev %s for boot",
+				    context->iface);
 
 		hostno = iscsi_sysfs_get_host_no_from_hwaddress(context->mac,
 								&rc);
@@ -957,6 +962,11 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 		sizeof(iface->hwaddress));
 	strlcpy(iface->ipaddress, context->ipaddr,
 		sizeof(iface->ipaddress));
+	iface->vlan_id = atoi(context->vlan);
+	strlcpy(iface->subnet_mask, context->mask,
+		sizeof(iface->subnet_mask));
+	strlcpy(iface->gateway, context->gateway,
+		sizeof(iface->gateway));
 	log_debug(1, "iface " iface_fmt "\n", iface_str(iface));
 	return 1;
 }

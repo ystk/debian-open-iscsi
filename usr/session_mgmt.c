@@ -172,18 +172,18 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 	 * that are missing.
 	 */
 	rc = iscsi_sysfs_for_each_session(rec, &session_count,
-					  iscsi_match_session_count);
+					  iscsi_match_session_count, 0);
 	if (rc) {
 		log_error("Could not count current number of sessions");
 		goto done;
 	}
 	if (session_count >= rec->session.nr_sessions) {
-		log_debug(1, "%s: %d session%s requested, but %d "
+		log_warning("%s: %d session%s requested, but %d "
 			  "already present.",
 			  rec->iface.name, rec->session.nr_sessions,
 			  rec->session.nr_sessions == 1 ? "" : "s",
 			  session_count);
-		rc = 0;
+		rc = ISCSI_ERR_SESS_EXISTS;
 		goto done;
 	}
 
@@ -421,7 +421,7 @@ int iscsi_logout_portals(void *data, int *nr_found, int wait,
 	*nr_found = 0;
 
 	err = iscsi_sysfs_for_each_session(&link_info, nr_found,
-					   session_info_create_list);
+					   session_info_create_list, 0);
 	if (err && !list_empty(&session_list))
 		log_error("Could not read in all sessions: %s",
 			  iscsi_err_to_str(err));
@@ -466,7 +466,8 @@ free_list:
 int iscsi_check_for_running_session(struct node_rec *rec)
 {
 	int nr_found = 0;
-	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
+	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session,
+					 0))
 		return 1;
 	return 0;
 }

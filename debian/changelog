@@ -1,3 +1,47 @@
+open-iscsi (2.0.873+git0.3b4b4500-3) unstable; urgency=medium
+
+  * [56e20ac] Revert "Add patch to enable fsck, mount and swap
+    for network block devices"
+  * [517546c] Handle network swap devices (blocks) (Closes: #756843)
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 20 Aug 2014 19:08:39 +0530
+
+open-iscsi (2.0.873+git0.3b4b4500-2) unstable; urgency=medium
+
+  [ Philipp Hug ]
+  * [b517ebb] Start open-iscsi after installation and make sure
+    initiatorname is generated.
+
+  [ Ritesh Raj Sarraf ]
+  * [7e1ae42] Add patch to enable fsck, mount and swap for network
+    block devices. Thanks to Turbo Fredriksson (Closes: #736349)
+  * [92ac387] Don't prematurely exit when encountering targets with
+    no block device. Thanks to Sammy Atmadja (Closes: #745708)
+  * [7363428] Add autotools-dev for updated config.{sub,guess}. Also add
+    dh-autoreconf in build-depends to support new architectures.
+    Thanks to Chen Baozi <baozich@gmail.com> and Wookey (Closes: 750610)
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Thu, 26 Jun 2014 13:05:48 +0530
+
+open-iscsi (2.0.873+git0.3b4b4500-1) unstable; urgency=low
+
+  * [53a1224] Fix typo in README.
+    Thanks to Jim Paris (Closes: #693559)
+  * [1fcfdb8] Imported Upstream version 2.0.873+git0.3b4b4500
+    (Closes: #722562)
+  * [2280fc1] Refresh Patches
+  * [ca1c9b9] Enable standard hardening knobs
+  * [d73fe1e] Drop patch -03_hardened-build-flags.patch
+  * [4599ae0] Update Vcs links
+  * [728c154] Try harder to determine an iSCSI block device.
+    Thanks to Dennis Leeuw, Philip Freeman (Closes: #691732)
+  * [1b68764] Call udev to settle so that network device is available.
+    Thanks to Jim Paris (Closes: #693558)
+  * [2478ad6] Don't allow iscsid to get killed during shutodown.
+    Thanks to Wakko Warner (Closes: #700762)
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 05 Nov 2013 21:45:47 +0530
+
 open-iscsi (2.0.873-3) unstable; urgency=low
 
   * [4939401] Fix build to install udeb stuff only on supported architectures

@@ -1,8 +1,8 @@
 hardened build flags - wheezy release goal
 Index: open-iscsi/usr/Makefile
 ===================================================================
---- open-iscsi.orig/usr/Makefile	2012-04-07 19:58:23.341694200 +0530
-+++ open-iscsi/usr/Makefile	2012-04-07 20:00:41.622379886 +0530
+--- open-iscsi.orig/usr/Makefile	2013-11-05 20:56:40.013418719 +0530
++++ open-iscsi/usr/Makefile	2013-11-05 20:56:40.009418719 +0530
 @@ -28,7 +28,7 @@
  endif
  endif
@@ -12,7 +12,7 @@ Index: open-iscsi/usr/Makefile
  WARNFLAGS ?= -Wall -Wstrict-prototypes
  CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -I. -I../utils/open-isns \
  				-D$(OSNAME) $(IPC_CFLAGS)
-@@ -54,14 +54,14 @@
+@@ -55,14 +55,14 @@
  
  iscsid: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
  	iscsid.o session_mgmt.o discoveryd.o
@@ -32,8 +32,8 @@ Index: open-iscsi/usr/Makefile
  
 Index: open-iscsi/utils/Makefile
 ===================================================================
---- open-iscsi.orig/utils/Makefile	2012-04-07 19:54:51.056641535 +0530
-+++ open-iscsi/utils/Makefile	2012-04-07 20:01:57.138754352 +0530
+--- open-iscsi.orig/utils/Makefile	2013-11-05 20:56:40.013418719 +0530
++++ open-iscsi/utils/Makefile	2013-11-05 20:56:40.009418719 +0530
 @@ -1,12 +1,12 @@
  # This Makefile will work only with GNU make.
  

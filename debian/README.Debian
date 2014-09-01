@@ -82,7 +82,7 @@ options in your initramfs:
    ISCSI_INITIATOR="iqn.1993-08.org.debian:01:9b3e5634fdb9"
    ISCSI_TARGET_NAME=iqn.2008-01.com.example:storage.foo
    ISCSI_TARGET_IP=192.168.1.1
-   ISCSI_TARGET_PORT=3160
+   ISCSI_TARGET_PORT=3260
    ISCSI_USERNAME="username"
    ISCSI_PASSWORD="password"
    ISCSI_IN_USERNAME="in_username"
