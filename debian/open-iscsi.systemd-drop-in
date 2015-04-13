@@ -1,0 +1,13 @@
+[Unit]
+# Make sure we have the proper ordering w.r.t. remote-fs-pre.target.
+# Not required for boot, but for shutdown.
+Wants=remote-fs-pre.target
+Before=remote-fs-pre.target
+
+[Service]
+# Replace stop actions, because calling umountiscsi.sh from
+# within open-iscsi script won't work due to systemctl
+# redirection (and umountiscsi.sh is never started)
+ExecStop=
+ExecStop=-/etc/init.d/umountiscsi.sh stop
+ExecStop=/etc/init.d/open-iscsi stop

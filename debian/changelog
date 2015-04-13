@@ -1,3 +1,60 @@
+open-iscsi (2.0.873+git0.3b4b4500-8) unstable; urgency=medium
+
+  * [e707e75] Exclude iscsid.conf from dh_fixperms. (Closes: #735773)
+
+ -- Christian Seiler <christian@iwakd.de>  Tue, 10 Feb 2015 18:00:54 +0100
+
+open-iscsi (2.0.873+git0.3b4b4500-7) unstable; urgency=medium
+
+  [ Ritesh Raj Sarraf ]
+  * [8ed5fd2] Revert changes introduced in 2.0.873+git0.3b4b4500-5
+
+  [ Christian Seiler ]
+  * [cea864b] Clean up sysvinit ordering w.r.t. NFS.
+  * [9097d07] Remove debian/gbp.conf again (change doesn't fit release
+    criteria).
+
+ -- Christian Seiler <christian@iwakd.de>  Mon, 09 Feb 2015 16:32:52 +0100
+
+open-iscsi (2.0.873+git0.3b4b4500-6) unstable; urgency=medium
+
+  [ Christian Seiler ]
+  * Replace $remote_fs from Should-Start/Stop in init script with
+    $local_fs and mountnfs-bootclean. (Breaks ordering cycle on
+    systemd systems.)
+  * Create systemd drop-in to create Before-dependency on
+    remote-fs-pre.target and run umountiscsi.sh on stop.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Sat, 31 Jan 2015 11:47:18 +0530
+
+open-iscsi (2.0.873+git0.3b4b4500-5) unstable; urgency=medium
+
+  [ Christian Seiler ]
+  * Create systemd unit, make it order before remote-fs-pre.target to
+    fix hang at boot. Unit currently only starts init script.
+  * Manually start umountiscsi.sh in open-iscsi init script to make
+    the stop action on shutdown not be a noop. (systemd tracks service
+    state)
+  * Add dh-systemd to build-deps.
+  * Reorder #DEBHELPER# in postinst to not break upgrades (dh-systemd's
+    code has to be there before invoke-rc.d is called).
+
+  [ Ritesh Raj Sarraf ]
+  * [fa0ce1c] Install iscsid.conf with permission 600 (Closes: #735773)
+  * [eeb3e90] Don't wait in detecting disks when run under systemd.
+    Thanks to Christian Seiler (Closes: #775778)
+  * [641f3ee] Add gbp.conf
+  * [cff497b] Add iscsi.service as an Alias
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Mon, 26 Jan 2015 13:04:33 +0530
+
+open-iscsi (2.0.873+git0.3b4b4500-4) unstable; urgency=medium
+
+  * [41c7eca] Introduce new architectures based on current build
+    status of the Debian Installer (Closes: #759817)
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Mon, 01 Sep 2014 14:32:59 +0530
+
 open-iscsi (2.0.873+git0.3b4b4500-3) unstable; urgency=medium
 
   * [56e20ac] Revert "Add patch to enable fsck, mount and swap

@@ -97,6 +97,7 @@ install-arch:
 	install -m 644 debian/initiatorname.iscsi $(CURDIR)/debian/open-iscsi/etc/iscsi/initiatorname.iscsi
 	install -m 600 etc/iscsid.conf $(CURDIR)/debian/open-iscsi/etc/iscsi
 	install -m 644 debian/open-iscsi.default $(CURDIR)/debian/open-iscsi/etc/default/open-iscsi
+	install -m 644 debian/open-iscsi.systemd-drop-in $(CURDIR)/debian/open-iscsi/lib/systemd/system/open-iscsi.service.d/fix-systemd-deps.conf
 
 ifneq (,$(findstring $(DEB_HOST_ARCH),$(SUPPORTED_ARCH_UDEB)))
 	# udeb stuff
@@ -105,7 +106,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH),$(SUPPORTED_ARCH_UDEB)))
 	install -m 755 utils/iscsi_discovery $(CURDIR)/debian/open-iscsi-udeb/sbin
 	install -m 755 usr/iscsid $(CURDIR)/debian/open-iscsi-udeb/sbin
 	install -m 755 usr/iscsistart $(CURDIR)/debian/open-iscsi-udeb/sbin
-	install -m 644 etc/iscsid.conf $(CURDIR)/debian/open-iscsi-udeb/etc/iscsi
+	install -m 600 etc/iscsid.conf $(CURDIR)/debian/open-iscsi-udeb/etc/iscsi
 	install -m 644 debian/open-iscsi-udeb.start $(CURDIR)/debian/open-iscsi-udeb/sbin/iscsi-start
 	install -m 755 debian/open-iscsi-udeb.finish-install $(CURDIR)/debian/open-iscsi-udeb/usr/lib/finish-install.d/10open-iscsi
 endif
@@ -133,7 +134,7 @@ binary-common:
 	dh_link
 	dh_strip
 	dh_compress 
-	dh_fixperms
+	dh_fixperms -Xetc/iscsi/iscsid.conf
 	dh_makeshlibs
 	dh_installdeb
 	dh_shlibdeps
