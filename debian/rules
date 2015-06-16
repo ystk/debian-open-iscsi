@@ -10,7 +10,7 @@ export DH_OPTIONS
 DEB_UPSTREAM_VERSION=$(shell dpkg-parsechangelog | sed -rne 's,^Version: ([^-]+).*,\1,p')
 
 DEB_HOST_ARCH?=$(shell dpkg-architecture -qDEB_HOST_ARCH)
-SUPPORTED_ARCH_UDEB = amd64 arm64 i386 ia64 mips mipsel powerpc
+SUPPORTED_ARCH_UDEB = amd64 arm64 i386 ia64 mips mipsel powerpc s390x ppc64el ppc64 armhf
 
 get-orig-source:
 	[ ! -f $(ORIG_FILE).gz ] || rm -f $(ORIG_FILE).gz

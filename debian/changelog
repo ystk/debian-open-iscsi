@@ -1,3 +1,10 @@
+open-iscsi (2.0.873+git0.3b4b4500-8+deb8u1) stable; urgency=medium
+
+  * [725c5c6] Populate udebs in every architecture they are built
+    (Closes: #784092)
+
+ -- Christian Seiler <christian@iwakd.de>  Wed, 13 May 2015 20:01:02 +0200
+
 open-iscsi (2.0.873+git0.3b4b4500-8) unstable; urgency=medium
 
   * [e707e75] Exclude iscsid.conf from dh_fixperms. (Closes: #735773)
