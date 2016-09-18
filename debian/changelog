@@ -1,3 +1,14 @@
+open-iscsi (2.0.873+git0.3b4b4500-8+deb8u2) jessie; urgency=medium
+
+  * [6d8d26d] init script: wait a bit after iSCSI devices have appeared.
+    This works around a race condition in which dependent devices can
+    appear only after the initial udev settle has returned.
+    (Closes: #833917)
+  * [8a8a870] open-iscsi-udeb: update initramfs after copying
+    configuration to target system. (Closes: #834830)
+
+ -- Christian Seiler <christian@iwakd.de>  Sat, 20 Aug 2016 11:14:44 +0200
+
 open-iscsi (2.0.873+git0.3b4b4500-8+deb8u1) stable; urgency=medium
 
   * [725c5c6] Populate udebs in every architecture they are built

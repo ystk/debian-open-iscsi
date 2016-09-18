@@ -109,6 +109,20 @@ start() {
 
 	udevadm settle || true;
 
+	# Work around race conditions: while after the above settle
+	# the disks themselves are guaranteed to be there, the
+	# kernel will scan partitions asynchronously; and multipathd
+	# will activate multipath devices only after a short delay
+	# (while it itself races for a lock with udev).
+	# See Debian Bug #833917 for details.
+	if [ -x /sbin/multipath ] ; then
+		sleep 3
+	else
+		sleep 1
+	fi
+	# Settle again to make sure that dependent devices are now
+	# available.
+	udevadm settle || true;
 
 	# Handle iSCSI LVM devices
 	if [ ! -x "/sbin/vgchange" -a -n "$LVMGROUPS" ]; then
