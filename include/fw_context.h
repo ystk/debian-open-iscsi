@@ -21,19 +21,33 @@
 #ifndef FWPARAM_CONTEXT_H_
 #define FWPARAM_CONTEXT_H_
 
+#include <netdb.h>
 #include <net/if.h>
 
 #include "iscsi_proto.h"
 #include "list.h"
 #include "auth.h"
 
+enum ibft_ip_prefix_origin {
+	IBFT_IP_PREFIX_ORIGIN_OTHER	= 0,
+	IBFT_IP_PREFIX_ORIGIN_MANUAL,
+	IBFT_IP_PREFIX_ORIGIN_WELL_KNOWN,
+	IBFT_IP_PREFIX_ORIGIN_DHCP,
+	IBFT_IP_PREFIX_ORIGIN_ROUTER_ADVERTISEMENT,
+	IBFT_IP_PREFIX_ORIGIN_UNCHANGED = 16
+};
+
 struct boot_context {
 	struct list_head list;
+	char boot_root[BOOT_NAME_MAXLEN];
+	char boot_nic[BOOT_NAME_MAXLEN];
+	char boot_target[BOOT_NAME_MAXLEN];
 
 	/* target settings */
+	int target_flags;
 	int target_port;
 	char targetname[TARGET_NAME_MAXLEN + 1];
-	char target_ipaddr[32];
+	char target_ipaddr[NI_MAXHOST];
 	char chap_name[AUTH_STR_MAX_LEN];
 	char chap_password[AUTH_STR_MAX_LEN];
 	char chap_name_in[AUTH_STR_MAX_LEN];
@@ -44,21 +58,26 @@ struct boot_context {
 	char initiatorname[TARGET_NAME_MAXLEN + 1];
 
 	/* network settings */
-	char dhcp[18];
+	int nic_flags;
+	enum ibft_ip_prefix_origin origin;
+	char dhcp[NI_MAXHOST];
 	char iface[IF_NAMESIZE];
 	char mac[18];
-	char ipaddr[18];
-	char gateway[18];
-	char primary_dns[18];
-	char secondary_dns[18];
-	char mask[18];
+	char ipaddr[NI_MAXHOST];
+	char gateway[NI_MAXHOST];
+	char primary_dns[NI_MAXHOST];
+	char secondary_dns[NI_MAXHOST];
+	char mask[NI_MAXHOST];
 	char lun[17];
 	char vlan[15];
+
+	char scsi_host_name[64];
 };
 
 extern int fw_get_entry(struct boot_context *context);
 extern void fw_print_entry(struct boot_context *context);
 extern int fw_get_targets(struct list_head *list);
 extern void fw_free_targets(struct list_head *list);
+extern int fw_setup_nics(void);
 
 #endif /* FWPARAM_CONTEXT_H_ */

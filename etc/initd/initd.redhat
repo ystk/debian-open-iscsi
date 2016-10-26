@@ -17,8 +17,6 @@ RETVAL=0
 start()
 {
 	echo -n $"Starting iSCSI initiator service: "
-	modprobe -q iscsi_tcp
-	modprobe -q ib_iser
 	daemon iscsid
 	RETVAL=$?
 	success
@@ -44,7 +42,7 @@ stop()
 		echo "Could not logout from all nodes, try again later"
 		return $RETVAL
 	fi
-	killproc iscsid
+	iscsiadm -k 0
 	rm -f /var/run/iscsid.pid
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
 	status=0

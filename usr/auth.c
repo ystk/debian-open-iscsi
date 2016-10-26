@@ -109,13 +109,13 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	/* the expected credentials are in the session */
 	if (session->username_in == NULL) {
 		log_error("failing authentication, no incoming username "
-			  "configured to authenticate target %s\n",
+			  "configured to authenticate target %s",
 			  session->target_name);
 		return AUTH_STATUS_FAIL;
 	}
 	if (strcmp(username, session->username_in) != 0) {
 		log_error("failing authentication, received incorrect "
-			  "username from target %s\n", session->target_name);
+			  "username from target %s", session->target_name);
 		return AUTH_STATUS_FAIL;
 	}
 
@@ -123,7 +123,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	    (session->password_in == NULL) ||
 	    (session->password_in[0] == '\0')) {
 		log_error("failing authentication, no incoming password "
-		       "configured to authenticate target %s\n",
+		       "configured to authenticate target %s",
 		       session->target_name);
 		return AUTH_STATUS_FAIL;
 	}
@@ -132,7 +132,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 
 	if (rsp_length != sizeof(verify_data)) {
 		log_error("failing authentication, received incorrect "
-			  "CHAP response length %u from target %s\n",
+			  "CHAP response length %u from target %s",
 			  rsp_length, session->target_name);
 		return AUTH_STATUS_FAIL;
 	}
@@ -154,13 +154,13 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	auth_md5_final(verify_data, &context);
 
 	if (memcmp(response_data, verify_data, sizeof(verify_data)) == 0) {
-		log_debug(1, "initiator authenticated target %s\n",
+		log_debug(1, "initiator authenticated target %s",
 			  session->target_name);
 		return AUTH_STATUS_PASS;
 	}
 
 	log_error("failing authentication, received incorrect CHAP "
-		  "response from target %s\n", session->target_name);
+		  "response from target %s", session->target_name);
 	return AUTH_STATUS_FAIL;
 }
 
@@ -189,32 +189,25 @@ get_random_bytes(unsigned char *data, unsigned int length)
 
 	long r;
         unsigned n;
-	int fd;
+	int fd, r_size = sizeof(r);
 
 	fd = open("/dev/urandom", O_RDONLY);
         while (length > 0) {
 
-		if (fd)
-			read(fd, &r, sizeof(long));
-		else
+		if (fd == -1 || read(fd, &r, r_size) != r_size)
 			r = rand();
                 r = r ^ (r >> 8);
                 r = r ^ (r >> 4);
                 n = r & 0x7;
 
-		if (fd)
-			read(fd, &r, sizeof(long));
-		else
+		if (fd == -1 || read(fd, &r, r_size) != r_size)
 			r = rand();
                 r = r ^ (r >> 8);
                 r = r ^ (r >> 5);
                 n = (n << 3) | (r & 0x7);
 
-		if (fd)
-			read(fd, &r, sizeof(long));
-		else
+		if (fd == -1 || read(fd, &r, r_size) != r_size)
 			r = rand();
-
                 r = r ^ (r >> 8);
                 r = r ^ (r >> 5);
                 n = (n << 2) | (r & 0x3);
@@ -1892,8 +1885,10 @@ acl_set_user_name(struct iscsi_acl *client, const char *username)
 		return AUTH_STATUS_ERROR;
 	}
 
-	if (strlcpy(client->username, username, AUTH_STR_MAX_LEN) >=
-	    AUTH_STR_MAX_LEN) {
+	if (!username)
+		client->username[0] = '\0';
+	else if (strlcpy(client->username, username, AUTH_STR_MAX_LEN) >=
+		 AUTH_STR_MAX_LEN) {
 		client->phase = AUTH_PHASE_ERROR;
 		return AUTH_STATUS_ERROR;
 	}
@@ -2007,7 +2002,7 @@ acl_dbg_status_to_text(int dbg_status)
 		"AuthMethod negotiation failed",
 		"AuthMethod negotiated to none",
 		"CHAP algorithm negotiation failed",
-		"CHAP challange reflected",
+		"CHAP challenge reflected",
 		"Local password same as remote",
 		"Local password not set",
 		"CHAP identifier bad",

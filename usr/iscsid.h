@@ -29,8 +29,8 @@ struct iscsi_daemon_config {
 	char *pid_file;
 	char *initiator_name;
 	char *initiator_alias;
+	int safe_logout;
 };
 extern struct iscsi_daemon_config *dconfig;
-extern int control_fd;
 
 #endif	/* ISCSID_H */

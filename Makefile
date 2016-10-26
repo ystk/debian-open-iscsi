@@ -14,31 +14,50 @@ mandir = $(prefix)/share/man
 etcdir = /etc
 initddir = $(etcdir)/init.d
 
-MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8
-PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery utils/iscsi-iname
+MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 iscsiuio/docs/iscsiuio.8
+PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery utils/iscsi-iname iscsiuio/src/unix/iscsiuio
 INSTALL = install
 ETCFILES = etc/iscsid.conf
 IFACEFILES = etc/iface.example
+
+# Compatibility: parse old OPTFLAGS argument
+ifdef OPTFLAGS
+CFLAGS = $(OPTFLAGS)
+endif
+
+# Export it so configure of iscsiuio will
+# pick it up.
+ifneq (,$(CFLAGS))
+export CFLAGS
+endif
 
 # Random comments:
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
 # over multiple makefile.
 
-all: user kernel
+all: user
 
-user: ;
+user: iscsiuio/Makefile
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
 	$(MAKE) -C utils
+	$(MAKE) -C iscsiuio
 	@echo
 	@echo "Compilation complete                 Output file"
 	@echo "-----------------------------------  ----------------"
 	@echo "Built iSCSI daemon:                  usr/iscsid"
 	@echo "Built management application:        usr/iscsiadm"
 	@echo "Built boot tool:                     usr/iscsistart"
+	@echo "Built iscsiuio daemon:               iscsiuio/src/unix/iscsiuio"
 	@echo
 	@echo "Read README file for detailed information."
+
+iscsiuio/Makefile: iscsiuio/configure iscsiuio/Makefile.in
+	cd iscsiuio; ./configure
+
+iscsiuio/configure iscsiuio/Makefile.in: iscsiuio/configure.ac iscsiuio/Makefile.am
+	cd iscsiuio; autoreconf --install
 
 kernel: force
 	$(MAKE) -C kernel
@@ -57,6 +76,8 @@ clean:
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
+	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio clean
+	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio distclean
 
 # this is for safety
 # now -jXXX will still be safe
@@ -65,7 +86,7 @@ clean:
 	install_initd_suse install_initd_redhat install_initd_debian \
 	install_etc install_iface install_doc install_kernel install_iname
 
-install: install_kernel install_programs install_doc install_etc \
+install: install_programs install_doc install_etc \
 	install_initd install_iname install_iface
 
 install_user: install_programs install_doc install_etc \
@@ -109,7 +130,7 @@ install_iface: $(IFACEFILES)
 	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi/ifaces
 
 install_etc: $(ETCFILES)
-	if [ ! -f /etc/iscsi/iscsid.conf ]; then \
+	if [ ! -f $(DESTDIR)/etc/iscsi/iscsid.conf ]; then \
 		$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi ; \
 		$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi ; \
 	fi
@@ -122,11 +143,11 @@ install_kernel:
 	$(MAKE) -C kernel install_kernel
 
 install_iname:
-	if [ ! -f /etc/iscsi/initiatorname.iscsi ]; then \
-		echo "InitiatorName=`/sbin/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi ; \
+	if [ ! -f $(DESTDIR)/etc/iscsi/initiatorname.iscsi ]; then \
+		echo "InitiatorName=`$(DESTDIR)/sbin/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
 		echo "***************************************************" ; \
-		echo "Setting InitiatorName to `cat /etc/iscsi/initiatorname.iscsi`" ; \
-		echo "To override edit /etc/iscsi/initiatorname.iscsi" ; \
+		echo "Setting InitiatorName to `cat $(DESTDIR)/etc/iscsi/initiatorname.iscsi`" ; \
+		echo "To override edit $(DESTDIR)/etc/iscsi/initiatorname.iscsi" ; \
 		echo "***************************************************" ; \
 	fi
 

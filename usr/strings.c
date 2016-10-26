@@ -26,8 +26,7 @@
 #include "strings.h"
 #include "log.h"
 
-int
-init_string_buffer(struct string_buffer *s, size_t initial_allocation)
+int str_init_buffer(struct str_buffer *s, size_t initial_allocation)
 {
 	if (s) {
 		memset(s, 0, sizeof (*s));
@@ -46,20 +45,17 @@ init_string_buffer(struct string_buffer *s, size_t initial_allocation)
 	return 0;
 }
 
-struct string_buffer *
-alloc_string_buffer(size_t initial_allocation)
+struct str_buffer *str_alloc_buffer(size_t initial_allocation)
 {
-	struct string_buffer *s = calloc(1, sizeof (*s));
+	struct str_buffer *s = calloc(1, sizeof (*s));
 
-	if (s) {
-		init_string_buffer(s, initial_allocation);
-	}
+	if (s)
+		str_init_buffer(s, initial_allocation);
 
 	return s;
 }
 
-void
-free_string_buffer(struct string_buffer *s)
+void str_free_buffer(struct str_buffer *s)
 {
 	if (s) {
 		if (s->buffer) {
@@ -71,15 +67,14 @@ free_string_buffer(struct string_buffer *s)
 	}
 }
 
-void
-enlarge_data(struct string_buffer *s, int length)
+int str_enlarge_data(struct str_buffer *s, int length)
 {
 	void *new_buf;
 
 	if (s) {
 		s->data_length += length;
 		if (s->data_length > s->allocated_length) {
-			log_debug(7, "enlarge buffer from %lu to %lu\n",
+			log_debug(7, "enlarge buffer from %lu to %lu",
 				  s->allocated_length, s->data_length);
 			new_buf = realloc(s->buffer, s->data_length);
 			if (!new_buf) {
@@ -88,7 +83,7 @@ enlarge_data(struct string_buffer *s, int length)
 					  "bytes, with only %d bytes of buffer "
 					  "space", s, (int)s->data_length,
 					   (int)s->allocated_length);
-				exit(1);
+				return ENOMEM;
 			}
 			s->buffer = new_buf;
 			memset(s->buffer + s->allocated_length, 0,
@@ -96,24 +91,30 @@ enlarge_data(struct string_buffer *s, int length)
 			s->allocated_length = s->data_length;
 		}
 	}
+
+	return 0;
 }
 
-void
-remove_initial(struct string_buffer *s, int length)
+void str_remove_initial(struct str_buffer *s, int length)
 {
-	char *remaining = s->buffer + length;
-	int amount = s->data_length - length;
+	char *remaining;
+	int amount;
 
 	if (s && length) {
-		memmove(s->buffer, remaining, amount);
+		remaining = s->buffer + length;
+		amount = s->data_length - length;
+
+		if (amount < 0)
+			amount = 0;
+		if (amount)
+			memmove(s->buffer, remaining, amount);
 		s->data_length = amount;
 		s->buffer[amount] = '\0';
 	}
 }
 
 /* truncate the data length down */
-void
-truncate_buffer(struct string_buffer *s, size_t length)
+void str_truncate_buffer(struct str_buffer *s, size_t length)
 {
 	if (s) {
 		if (!s->data_length)
@@ -137,8 +138,7 @@ truncate_buffer(struct string_buffer *s, size_t length)
 	}
 }
 
-char *
-buffer_data(struct string_buffer *s)
+char *str_buffer_data(struct str_buffer *s)
 {
 	if (s)
 		return s->buffer;
@@ -146,8 +146,7 @@ buffer_data(struct string_buffer *s)
 		return NULL;
 }
 
-size_t
-data_length(struct string_buffer * s)
+size_t str_data_length(struct str_buffer * s)
 {
 	if (s)
 		return s->data_length;
@@ -155,8 +154,7 @@ data_length(struct string_buffer * s)
 		return 0;
 }
 
-size_t
-unused_length(struct string_buffer * s)
+size_t str_unused_length(struct str_buffer * s)
 {
 	if (s)
 		return s->allocated_length - s->data_length;

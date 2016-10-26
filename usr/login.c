@@ -27,11 +27,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
+#include <errno.h>
 #include <sys/param.h>
 
 #include "initiator.h"
 #include "transport.h"
 #include "log.h"
+#include "iscsi_timer.h"
 
 /* caller is assumed to be well-behaved and passing NUL terminated strings */
 int
@@ -47,16 +50,14 @@ iscsi_add_text(struct iscsi_hdr *pdu, char *data, int max_data_length,
 	int pdu_length = ntoh24(pdu->dlength);
 	char *text = data;
 	char *end = data + max_data_length;
-	char *pdu_text;
 
 	/* find the end of the current text */
 	text += pdu_length;
-	pdu_text = text;
 	pdu_length += length;
 
 	if (text + length >= end) {
 		log_warning("Failed to add login text "
-			    "'%s=%s'\n", param, value);
+			    "'%s=%s'", param, value);
 		return 0;
 	}
 
@@ -167,7 +168,7 @@ resolve_address(char *host, char *port, struct sockaddr_storage *ss)
 
 	if ((rc = getaddrinfo(host, port, &hints, &res))) {
 		log_error("Cannot resolve host %s. getaddrinfo error: "
-			  "[%s]\n", host, gai_strerror(rc));
+			  "[%s]", host, gai_strerror(rc));
 		return rc;
 	}
 
@@ -388,8 +389,19 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 	} else if (iscsi_find_key_value("MaxRecvDataSegmentLength", text, end,
 				     &value, &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_DISCOVERY ||
-		    !session->t->template->rdma)
-			conn->max_xmit_dlength = strtoul(value, NULL, 0);
+		    !session->t->template->rdma) {
+			int tgt_max_xmit;
+			conn_rec_t *conn_rec = &session->nrec.conn[cid];
+
+			tgt_max_xmit = strtoul(value, NULL, 0);
+			/*
+			 * if the rec value is zero it means to use
+			 * what the target gave us.
+			 */
+			if (!conn_rec->iscsi.MaxXmitDataSegmentLength ||
+			    tgt_max_xmit < conn->max_xmit_dlength)
+				conn->max_xmit_dlength = tgt_max_xmit;
+		}
 		text = value_end;
 	} else if (iscsi_find_key_value("FirstBurstLength", text, end, &value,
 					 &value_end)) {
@@ -1423,11 +1435,15 @@ int
 iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 {
 	iscsi_conn_t *conn = &session->conn[c->cid];
+	int err;
 
 	/* read the target's response into the same buffer */
-	if (!iscsi_io_recv_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE, c->data,
-			    c->max_data_length, ISCSI_DIGEST_NONE,
-			    c->timeout)) {
+	err = iscsi_io_recv_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE, c->data,
+			        c->max_data_length, ISCSI_DIGEST_NONE,
+			        c->timeout);
+	if (err == -EAGAIN) {
+		goto done;
+	} else if (err < 0) {
 		/*
 		 * FIXME: caller might want us to distinguish I/O
 		 * error and timeout. Might want to switch portals on
@@ -1438,6 +1454,7 @@ iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 		goto done;
 	}
 
+	err = -EIO;
 	c->received_pdu = 1;
 
 	/* check the PDU response type */
@@ -1479,7 +1496,7 @@ iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 		if (c->ret == LOGIN_OK)
 			c->ret = LOGIN_FAILED;
 	}
-	return 1;
+	return err;
 }
 
 /**
@@ -1503,7 +1520,9 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 {
 	iscsi_conn_t *conn = &session->conn[cid];
 	iscsi_login_context_t *c = &conn->login_context;
-	int ret;
+	struct timeval connection_timer;
+	struct pollfd pfd;
+	int ret, timeout;
 
 	/*
 	 * assume iscsi_login is only called from discovery, so it is
@@ -1521,15 +1540,63 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 	do {
 		if (iscsi_login_req(session, c))
 			return c->ret;
-		ret = iscsi_login_rsp(session, c);
 
-		if (status_class)
-			*status_class = c->status_class;
-		if (status_detail)
-			*status_detail = c->status_detail;
+		/*
+		 * TODO: merge the poll and req/rsp code with the discovery
+		 * poll and text req/rsp.
+		 */
+		iscsi_timer_set(&connection_timer,
+				session->conn[0].active_timeout);
+		timeout = iscsi_timer_msecs_until(&connection_timer);
 
-		if (ret)
+		memset(&pfd, 0, sizeof (pfd));
+		pfd.fd = conn->socket_fd;
+		pfd.events = POLLIN | POLLPRI;
+
+repoll:
+		pfd.revents = 0;
+		ret = poll(&pfd, 1, timeout);
+		log_debug(7, "%s: Poll return %d", __FUNCTION__, ret);
+		if (iscsi_timer_expired(&connection_timer)) {
+			log_warning("Login response timeout. Waited %d "
+				    "seconds and did not get reponse PDU.",
+				    session->conn[0].active_timeout);
+			c->ret = LOGIN_FAILED;
 			return c->ret;
+		}
+
+		if (ret > 0) {
+			if (pfd.revents & (POLLIN | POLLPRI)) {
+				ret = iscsi_login_rsp(session, c);
+				if (ret ==  -EAGAIN)
+					goto repoll;
+
+				if (status_class)
+					*status_class = c->status_class;
+				if (status_detail)
+					*status_detail = c->status_detail;
+
+				if (ret)
+					return c->ret;
+			} else if (pfd.revents & POLLHUP) {
+				log_warning("Login POLLHUP");
+				c->ret = LOGIN_FAILED;
+				return c->ret;
+			} else if (pfd.revents & POLLNVAL) {
+				log_warning("Login POLLNVAL");
+				c->ret = LOGIN_IO_ERROR;
+				return c->ret;
+			} else if (pfd.revents & POLLERR) {
+				log_warning("Login POLLERR");
+				c->ret = LOGIN_IO_ERROR;
+				return c->ret;
+			}
+
+		} else if (ret < 0) {
+			log_error("Login poll error.");
+			c->ret = LOGIN_FAILED;
+			return c->ret;
+		}
 	} while (conn->current_stage != ISCSI_FULL_FEATURE_PHASE);
 
 	c->ret = LOGIN_OK;

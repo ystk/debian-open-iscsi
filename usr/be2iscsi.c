@@ -18,14 +18,20 @@
 
 void be2iscsi_create_conn(struct iscsi_conn *conn)
 {
+	struct iscsi_session *session = conn->session;
+
 	if (conn->max_recv_dlength > 65536)
 		conn->max_recv_dlength = 65536;
 
-	if (conn->session->first_burst > 8192)
-		conn->session->first_burst = 8192;
+	if (session->first_burst > 8192)
+		session->first_burst = 8192;
 
-	if (conn->session->max_burst > 262144)
-		conn->session->max_burst = 262144;
+	if (session->max_burst > 262144)
+		session->max_burst = 262144;
 
-	conn->session->erl = 0;
+	if (conn->max_xmit_dlength > 65536)
+		conn->max_xmit_dlength = 65536;
+
+	session->erl = 0;
+	session->initial_r2t_en = 1;
 }
