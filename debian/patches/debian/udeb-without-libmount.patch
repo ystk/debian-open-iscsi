@@ -1,0 +1,115 @@
+Description: Temporarily support builds without libmount
+ libmount is not available as an udeb at the moment, so in order for
+ the udeb not to break, temporarily support builds without libmount
+ for d-i environments (removing the safety check at session shutdown).
+ This is not intended for upstream, only as a stop-gap measure until
+ a libmount udeb is available again.
+Forwarded: no
+Author: Christian Seiler <christian@iwakd.de>
+Bug-Debian: https://bugs.debian.org/834241
+Last-Update: 2016-08-14
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/usr/Makefile
++++ b/usr/Makefile
+@@ -33,6 +33,8 @@ WARNFLAGS ?= -Wall -Wstrict-prototypes
+ CFLAGS += $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS)
+ PROGRAMS = iscsid iscsiadm iscsistart
+ 
++LIBMOUNT_LIB = -lmount
++
+ # libc compat files
+ SYSDEPS_SRCS = $(sort $(wildcard ../utils/sysdeps/*.o))
+ # sources shared between iscsid, iscsiadm and iscsistart
+@@ -54,10 +56,10 @@ all: $(PROGRAMS)
+ 
+ iscsid: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
+ 	iscsid.o session_mgmt.o discoveryd.o mntcheck.o
+-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@  -lisns-nocrypto -lrt -lmount
++	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@  -lisns-nocrypto -lrt $(LIBMOUNT_LIB)
+ 
+ iscsiadm: $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS) iscsiadm.o session_mgmt.o mntcheck.o
+-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lisns-nocrypto -lmount
++	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lisns-nocrypto $(LIBMOUNT_LIB)
+ 
+ iscsistart: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
+ 		iscsistart.o statics.o
+--- a/usr/initiator_common.c
++++ b/usr/initiator_common.c
+@@ -24,7 +24,9 @@
+ #include <stdlib.h>
+ #include <errno.h>
+ #include <dirent.h>
++#ifndef NO_LIBMOUNT
+ #include <libmount/libmount.h>
++#endif
+ 
+ #include "initiator.h"
+ #include "transport.h"
+--- a/usr/mntcheck.c
++++ b/usr/mntcheck.c
+@@ -22,7 +22,9 @@
+ #include <stdlib.h>
+ #include <errno.h>
+ #include <dirent.h>
++#ifndef NO_LIBMOUNT
+ #include <libmount/libmount.h>
++#endif
+ 
+ #include "initiator.h"
+ #include "transport.h"
+@@ -37,6 +39,7 @@
+ #include "iscsi_err.h"
+ #include "iscsi_net_util.h"
+ 
++#ifndef NO_LIBMOUNT
+ static struct libmnt_table *mtab, *swaps;
+ static struct libmnt_cache *mntcache;
+ 
+@@ -66,6 +69,7 @@ static int libmount_init(void)
+ 	mnt_table_parse_swaps(swaps, NULL);
+ 	return 0;
+ }
++#endif
+ 
+ static int trans_filter(const struct dirent *d)
+ {
+@@ -97,6 +101,7 @@ static int is_partition(const char *path
+ 
+ static int blockdev_check_mnts(char *syspath)
+ {
++#ifndef NO_LIBMOUNT
+ 	struct libmnt_fs *fs;
+ 	char *devname = NULL;
+ 	char *_devname = NULL;
+@@ -123,6 +128,9 @@ out:
+ 	free(devname);
+ 	free(_devname);
+ 	return rc;
++#else
++	return 0;
++#endif
+ }
+ 
+ static int count_device_users(char *syspath);
+@@ -218,16 +226,20 @@ int session_in_use(int sid)
+ 	int host_no = -1, err = 0;
+ 	int count = 0;
+ 
++#ifndef NO_LIBMOUNT
+ 	if (libmount_init()) {
+ 		log_error("Failed to initialize libmount, "
+ 			  "not checking for active mounts on session [%d].", sid);
+ 		return 0;
+ 	}
++#endif
+ 
+ 	host_no = iscsi_sysfs_get_host_no_from_sid(sid, &err);
+ 	if (!err)
+ 		iscsi_sysfs_for_each_device(&count, host_no, sid, device_in_use);
+ 
++#ifndef NO_LIBMOUNT
+ 	libmount_cleanup();
++#endif
+ 	return count;
+ }

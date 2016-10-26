@@ -1,0 +1,11 @@
+#!/usr/bin/dh-exec
+usr/iscsiadm                                 /bin
+utils/iscsi-iname                            /sbin
+utils/iscsi_discovery                        /sbin
+usr/iscsid                                   /sbin
+usr/iscsistart                               /sbin
+etc/iscsid.conf                              /etc/iscsi
+debian/open-iscsi-udeb.start              => /sbin/iscsi-start
+debian/open-iscsi-udeb.finish-install     => /usr/lib/finish-install.d/10open-iscsi
+# dh_lintian ignores udebs, force installation
+debian/open-iscsi-udeb.lintian-overrides  => /usr/share/lintian/overrides/open-iscsi-udeb

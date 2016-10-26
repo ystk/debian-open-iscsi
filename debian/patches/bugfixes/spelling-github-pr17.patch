@@ -1,0 +1,574 @@
+Description: Spelling fixes
+Forwarded: https://github.com/open-iscsi/open-iscsi/pull/17
+Author: Ville Skyttä <ville.skytta@iki.fi>
+Last-Update: 2016-03-03
+
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+
+ Changelog                     |  2 +-
+ README                        | 38 +++++++++++++++++++-------------------
+ TODO                          |  6 +++---
+ doc/iscsiadm.8                |  4 ++--
+ doc/iscsistart.8              |  2 +-
+ etc/iface.example             |  4 ++--
+ etc/initd/initd.suse          |  2 +-
+ etc/iscsid.conf               |  4 ++--
+ kernel/Makefile               |  6 +++---
+ kernel/iscsi_tcp.c            |  2 +-
+ kernel/libiscsi.c             |  4 ++--
+ kernel/libiscsi_tcp.h         |  2 +-
+ kernel/scsi_transport_iscsi.h |  2 +-
+ sysfs-documentation           |  2 +-
+ usr/auth.c                    |  4 ++--
+ usr/idbm.c                    |  4 ++--
+ usr/iface.c                   |  8 ++++----
+ usr/initiator.c               |  4 ++--
+ usr/iscsi_sysfs.c             |  4 ++--
+ usr/iscsi_util.c              |  2 +-
+ usr/iscsiadm.c                | 10 +++++-----
+ usr/iscsistart.c              |  2 +-
+ usr/login.c                   |  2 +-
+ 23 files changed, 60 insertions(+), 60 deletions(-)
+
+--- a/Changelog
++++ b/Changelog
+@@ -54,7 +54,7 @@ Mike Christie (86):
+       isns: Fix endless loop when pollhup is returned
+       iscsi tools: fix multi pdu sendtargets discovery sequences
+       iscsi boot: fix iscsi_boot sysfs parsing
+-      Use pass through interface for sendtargets (take4) Currenly offload cards like bnx2i, be2iscsi, cxgb3i must use a normal eth for discovery. This patch allows us to do discovery using the iscsi class passthrough interface.
++      Use pass through interface for sendtargets (take4) Currently offload cards like bnx2i, be2iscsi, cxgb3i must use a normal eth for discovery. This patch allows us to do discovery using the iscsi class passthrough interface.
+       Add userspace/tools iscsi error code defs
+       iscsi tools: fix iscsiadm exit codes
+       iscsid: modify data drop
+--- a/README
++++ b/README
+@@ -534,11 +534,11 @@ The format is:
+ iface_name transport_name,hwaddress,ipaddress,net_ifacename,initiatorname
+ 
+ For software iscsi, you can create the iface configs by hand, but it is
+-reccomended that you use iscsiadm's iface mode. There is a iface.example in
++recommended that you use iscsiadm's iface mode. There is an iface.example in
+ /etc/iscsi/ifaces which can be used as a template for the daring.
+ 
+ For each network object you wish to bind a session to you must create
+-a seperate iface config in /etc/iscsi/ifaces and each iface config file
++a separate iface config in /etc/iscsi/ifaces and each iface config file
+ must have a unique name which is less than or equal to 64 characters.
+ 
+ Example:
+@@ -555,14 +555,14 @@ and in /etc/iscsi/ifaces/iface1 you woul
+ iface.transport_name = tcp
+ iface.hwaddress = 00:C0:DD:08:63:E7
+ 
+-Warning: Do not name a iface config file  "default" or "iser".
++Warning: Do not name an iface config file  "default" or "iser".
+ They are special value/file that is used by the iscsi tools for
+-backward compatibility. If you name a iface default or iser, then
++backward compatibility. If you name an iface default or iser, then
+ the behavior is not defined.
+ 
+ To use iscsiadm to create iface0 above for you run:
+ 
+-(This will create a new empty iface config. If there was already a iface
++(This will create a new empty iface config. If there was already an iface
+ with the name "iface0" this command will overwrite it.)
+ # iscsiadm -m iface -I iface0 --op=new
+ 
+@@ -570,7 +570,7 @@ with the name "iface0" this command will
+ # iscsiadm -m iface -I iface0 --op=update -n iface.hwaddress -v 00:0F:1F:92:6B:BF
+ 
+ If you had sessions logged in iscsiadm will not update, overwrite
+-a iface. You must log out first. If you have a iface bound to a node/portal
++a iface. You must log out first. If you have an iface bound to a node/portal
+ but you have not logged in then, iscsiadm will update the config and
+ all existing bindings.
+ 
+@@ -580,13 +580,13 @@ some helpful management commands.
+ 
+ 
+ 
+-5.1.2 Setting up a iface for a iSCSI offload card
+-=================================================
++5.1.2 Setting up an iface for an iSCSI offload card
++===================================================
+ 
+ This section describes how to setup ifaces for use with Chelsio, Broadcom and
+ QLogic cards.
+ 
+-By default, iscsiadm will create a iface for each Broadcom, QLogic and Chelsio
++By default, iscsiadm will create an iface for each Broadcom, QLogic and Chelsio
+ port. The iface name will be of the form:
+ 
+ $transport/driver_name.$MAC_ADDRESS
+@@ -682,7 +682,7 @@ next section.
+ 
+ Be aware that iscsiadm will use the default route to do discovery. It will
+ not use the iface specified. So if you are using a offload card, you will
+-need a seperate network connection to the target for discovery purposes.
++need a separate network connection to the target for discovery purposes.
+ *This will be fixed in the next version of open-iscsi*
+ 
+ For compatibility reasons, when you run iscsiadm to do discovery, it
+@@ -699,7 +699,7 @@ you can use the --interface/-I argument:
+ iscsiadm -m discoverydb -t st -p ip:port -I iface1 --discover -P 1
+ 
+ If you had defined interfaces but wanted the old behavior, where 
+-we do not bind a session to a iface, then you can use the special iface
++we do not bind a session to an iface, then you can use the special iface
+ "default":
+ 
+ iscsiadm -m discoverydb -t st -p ip:port -I default --discover -P 1
+@@ -727,7 +727,7 @@ And for equalogic targets it is sometime
+ iscsiadm -m node -p ip:port -I iface0 --op=delete
+ 
+ 
+-To now log into targets it is the same as with sofware iscsi. See section
++To now log into targets it is the same as with software iscsi. See section
+ 7 for how to get started.
+ 
+ 
+@@ -868,7 +868,7 @@ To now log into targets it is the same a
+ 
+ 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -l
+ 
+-	To specify a IPv6 address the following can be used:
++	To specify an iPv6 address the following can be used:
+ 
+ 	    ./iscsiadm -m node -T iqn.2005-03.com.max \
+ 					-p 2001:c90::211:9ff:feb8:a9e9 -l
+@@ -939,7 +939,7 @@ To now log into targets it is the same a
+ 
+ 	    ./iscsiadm -m node -o new -I iface4
+ 
+-	This command will add a interface config using the iSCSI and SCSI
++	This command will add an interface config using the iSCSI and SCSI
+ 	settings from iscsid.conf to every target that is in the node db.
+ 
+     - Removing iSCSI portal:
+@@ -1121,7 +1121,7 @@ portals that are set up for automatic lo
+ or discovered through the discover daemon iscsid.conf params
+ (discussed in 7.1.2).
+ 
+-If your distro does not have a init script, then you will have to start the
++If your distro does not have an init script, then you will have to start the
+ daemon and log into the targets manually.
+ 
+ 
+@@ -1141,13 +1141,13 @@ Where <levels> are the run levels.
+ 
+ And, to automatically mount a file system during startup
+ you must have the partition entry in /etc/fstab marked with the "_netdev"
+-option. For example this would mount a iscsi disk sdb:
++option. For example this would mount an iscsi disk sdb:
+ 
+ 	/dev/sdb /mnt/iscsi ext3 _netdev 0 0
+ 
+ SUSE or Debian:
+ ---------------
+-Otherwise, if there is a initd script for your distro in etc/initd that
++Otherwise, if there is an initd script for your distro in etc/initd that
+ gets installed with "make install"
+ 
+ 	/etc/init.d/open-iscsi start
+@@ -1371,7 +1371,7 @@ commands.
+ 
+ iSNS:
+ ----
+-- Create a iSNS record by passing iscsiadm the "-o new" argument in
++- Create an iSNS record by passing iscsiadm the "-o new" argument in
+   discoverydb mode.
+ # iscsiadm -m discoverydb -t isns -p 20.15.0.7:3205 -o new
+ New discovery record for [20.15.0.7,3205] added.
+@@ -1520,7 +1520,7 @@ multipath.conf settings, instead of the
+ 8.2 iSCSI settings for iSCSI root
+ ---------------------------------
+ 
+-When accessing the root partition directly through a iSCSI disk, the
++When accessing the root partition directly through an iSCSI disk, the
+ iSCSI timers should be set so that iSCSI layer has several chances to try to
+ re-establish a session and so that commands are not quickly requeued to
+ the SCSI layer. Basically you want the opposite of when using dm-multipath.
+--- a/TODO
++++ b/TODO
+@@ -89,7 +89,7 @@ libiscsi_tcp will call iscsi_tcp_get_cur
+ the xmit path from the xmit thread and then in the recv path
+ libiscsi_tcp/iscsi_tcp will call iscsi_tcp_r2t_rsp (this function is called
+ with the session lock held). We could add a new per iscsi_task lock and
+-use that to gaurd the R2T.
++use that to guard the R2T.
+ 
+ 2. For iscsi_tcp and cxgb*i, libiscsi uses the session->cmdqueue linked list
+ and the session lock to queue IO from the queuecommand function (run from
+@@ -175,7 +175,7 @@ there. We can only use something that is
+ ---------------------------------------------------------------------------
+ 
+ 8. Improve the iscsi driver logging. Each driver has a different
+-way to control logging. We should unify them and make it managable
++way to control logging. We should unify them and make it manageable
+ by iscsiadm. So each driver would use a common format, there would
+ be a common kernel interface to set the logging level, etc.
+ 
+@@ -210,7 +210,7 @@ time, we might not be abe to allocate a
+ To work around the problem the initiator prealloctes a 8K (sometimes
+ more depending on the page size) buffer for each session (see iscsi_conn_setup'
+ s __get_free_pages call). This is obviously very wasteful since it will be
+-a rate occurance. Can we think of a way to allow multiple sessions to
++a rare occurrence. Can we think of a way to allow multiple sessions to
+ be relogged in at the same time, but not have to preallocate so many
+ buffers?
+ 
+--- a/doc/iscsiadm.8
++++ b/doc/iscsiadm.8
+@@ -255,8 +255,8 @@ iser (software iSCSI over InfiniBand), o
+ hwaddress is the MAC address or for software iSCSI it may be the special
+ value "default" which directs the initiator to not bind the session to a
+ specific hardware resource and instead allow the network or InfiniBand layer
+-to decide what to do. There is no need to create a iface config with the default
+-behavior. If you do not specify a iface, then the default behavior is used.
++to decide what to do. There is no need to create an iface config with the default
++behavior. If you do not specify an iface, then the default behavior is used.
+ 
+ As mentioned above there is a special iface name default. There are three
+ others -- cxgb3i, bnx2i and iser, which does not bind the session to a specific card, but will bind the session to the cxgb3i, bnx2i or iser transport. These
+--- a/doc/iscsistart.8
++++ b/doc/iscsistart.8
+@@ -22,7 +22,7 @@ Set TargetName to name (Required if not
+ Set target portal group tag to N (Required if not using iBFT or OF)
+ .TP
+ .BI [-a|--address=]\fIA.B.C.D\fP
+-Set IP addres to A.B.C.D (Required if not using iBFT or OF)
++Set IP address to A.B.C.D (Required if not using iBFT or OF)
+ .TP
+ .BI [-p|--port=]\fIN\fP
+ Set port to N (Optional. Default 3260)
+--- a/etc/iface.example
++++ b/etc/iface.example
+@@ -1,7 +1,7 @@
+ #
+ # Example iSCSI interface config
+ #
+-# There must be a seperate iscsi interface config file for each NIC, network
++# There must be a separate iscsi interface config file for each NIC, network
+ # interface or port or iscsi HBA you want to bind sessions to.
+ #
+ # For hardware iscsi, this is created for you when you run iscsiadm.
+@@ -23,7 +23,7 @@
+ # - cxgb3i (Chelsio cxgb S3 iSCSI HBAs);
+ #
+ #OPTIONAL: iface.initiatorname
+-# To use a initiator name other than the one set in
++# To use an initiator name other than the one set in
+ # /etc/iscsi/initiatorname.iscsi for normal sessions set the
+ # iface.initiatorname. This is only used for normal sessions.
+ # For discovery sessions the /etc/iscsi/initiatorname.iscsi value
+--- a/etc/initd/initd.suse
++++ b/etc/initd/initd.suse
+@@ -12,7 +12,7 @@
+ # Default-Stop:      
+ # Short-Description: iSCSI initiator daemon
+ # Description:       The iSCSI initator is used to create and
+-#                    manage iSCSI connections to a iSCSI Target.
++#                    manage iSCSI connections to an iSCSI Target.
+ #
+ ### END INIT INFO
+ 
+--- a/etc/iscsid.conf
++++ b/etc/iscsid.conf
+@@ -10,7 +10,7 @@
+ ######################
+ # iscsid daemon config
+ ######################
+-# If you want iscsid to start the first time a iscsi tool
++# If you want iscsid to start the first time an iscsi tool
+ # needs to access it, instead of starting it when the init
+ # scripts run, set the iscsid startup command here. This
+ # should normally only need to be done by distro package
+@@ -44,7 +44,7 @@ node.startup = manual
+ 
+ # For "automatic" startup nodes, setting this to "Yes" will try logins on each
+ # available iface until one succeeds, and then stop.  The default "No" will try
+-# logins on all availble ifaces simultaneously.
++# logins on all available ifaces simultaneously.
+ node.leading_login = No
+ 
+ # *************
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -183,9 +183,9 @@ clean: $(unpatch_code)
+ 	$(KBUILD_BASE) clean
+ 	rm -f Module.symvers
+ 
+-## The folowing compat_patch target is what we need to do to prepare a clean
++## The following compat_patch target is what we need to do to prepare a clean
+ # compat_patch set after new code is check-in to svn. To keep patches fuzzless.
+-# the new patches are writen into .new files so svn diff of next file will
++# the new patches are written into .new files so svn diff of next file will
+ # not trip on them.
+ compat_patch: $(unpatch_code)
+ 	test -z "$(svn diff|head)" || { \
+@@ -213,7 +213,7 @@ INSTALL_MOD_PATH=
+ endif
+ 
+ # this evil rule ensures that the modules get build if you specify $(ko)
+-# as a dependancy.
++# as a dependency.
+ ko = $(patsubst %.o,%.ko,$(obj-m))
+ $(ko): all
+ 
+--- a/kernel/iscsi_tcp.c
++++ b/kernel/iscsi_tcp.c
+@@ -296,7 +296,7 @@ static int iscsi_sw_tcp_xmit(struct iscs
+ 		rc = iscsi_sw_tcp_xmit_segment(tcp_conn, segment);
+ 		/*
+ 		 * We may not have been able to send data because the conn
+-		 * is getting stopped. libiscsi will know so propogate err
++		 * is getting stopped. libiscsi will know so propagate err
+ 		 * for it to do the right thing.
+ 		 */
+ 		if (rc == -EAGAIN)
+--- a/kernel/libiscsi.c
++++ b/kernel/libiscsi.c
+@@ -2264,7 +2264,7 @@ int iscsi_eh_device_reset(struct scsi_cm
+ 	spin_lock_bh(&session->lock);
+ 	/*
+ 	 * Just check if we are not logged in. We cannot check for
+-	 * the phase because the reset could come from a ioctl.
++	 * the phase because the reset could come from an ioctl.
+ 	 */
+ 	if (!session->leadconn || session->state != ISCSI_STATE_LOGGED_IN)
+ 		goto unlock;
+@@ -2427,7 +2427,7 @@ int iscsi_eh_target_reset(struct scsi_cm
+ 	spin_lock_bh(&session->lock);
+ 	/*
+ 	 * Just check if we are not logged in. We cannot check for
+-	 * the phase because the reset could come from a ioctl.
++	 * the phase because the reset could come from an ioctl.
+ 	 */
+ 	if (!session->leadconn || session->state != ISCSI_STATE_LOGGED_IN)
+ 		goto unlock;
+--- a/kernel/libiscsi_tcp.h
++++ b/kernel/libiscsi_tcp.h
+@@ -51,7 +51,7 @@ struct iscsi_segment {
+ 	iscsi_segment_done_fn_t	*done;
+ };
+ 
+-/* Socket connection recieve helper */
++/* Socket connection receive helper */
+ struct iscsi_tcp_recv {
+ 	struct iscsi_hdr	*hdr;
+ 	struct iscsi_segment	segment;
+--- a/kernel/scsi_transport_iscsi.h
++++ b/kernel/scsi_transport_iscsi.h
+@@ -58,7 +58,7 @@ struct sockaddr;
+  * @stop_conn:		suspend/recover/terminate connection
+  * @send_pdu:		send iSCSI PDU, Login, Logout, NOP-Out, Reject, Text.
+  * @session_recovery_timedout: notify LLD a block during recovery timed out
+- * @init_task:		Initialize a iscsi_task and any internal structs.
++ * @init_task:		Initialize an iscsi_task and any internal structs.
+  *			When offloading the data path, this is called from
+  *			queuecommand with the session lock, or from the
+  *			iscsi_conn_send_pdu context with the session lock.
+--- a/sysfs-documentation
++++ b/sysfs-documentation
+@@ -199,7 +199,7 @@ Valid values: Unknown, Advertised, Manua
+ 
+ grat_neighbor_adv_en
+ --------------------
+-Enable Gratuitious Neighbor Advertisement
++Enable Gratuitous Neighbor Advertisement
+ 
+ Valid values: "enable" or "disable"
+ 
+--- a/usr/auth.c
++++ b/usr/auth.c
+@@ -20,7 +20,7 @@
+  * RFC 3720.  The code in this file is meant to be common for both kernel and
+  * user level and makes use of only limited  library  functions, presently only
+  * string.h. Routines specific to kernel, user level are implemented in
+- * seperate files under the appropriate directories.
++ * separate files under the appropriate directories.
+  * This code in this files assumes a single thread of execution
+  * for each iscsi_acl structure, and does no locking.
+  */
+@@ -1071,7 +1071,7 @@ acl_hand_shake(struct iscsi_acl *client)
+ 
+ 		/*
+ 		 * Should only happen if authentication
+-		 * protocol error occured.
++		 * protocol error occurred.
+ 		 */
+ 		return;
+ 
+--- a/usr/idbm.c
++++ b/usr/idbm.c
+@@ -255,7 +255,7 @@ idbm_recinfo_node(node_rec_t *r, recinfo
+ 	 *
+ 	 * Users should nornmally not want to change the iface ones
+ 	 * in the node record directly and instead do it through
+-	 * the iface mode which will do the right thing (althought that
++	 * the iface mode which will do the right thing (although that
+ 	 * needs some locking).
+ 	 */
+ 	__recinfo_str(IFACE_HWADDR, ri, r, iface.hwaddress, IDBM_SHOW, num, 1);
+@@ -1699,7 +1699,7 @@ int idbm_print_all_discovery(int info_le
+  * This will run fn over all recs with the {targetname,tpgt,ip,port}
+  * id. It does not iterate over the ifaces setup in /etc/iscsi/ifaces.
+  *
+- * fn should return -1 if it skipped the rec, a ISCSI_ERR error code if
++ * fn should return -1 if it skipped the rec, an ISCSI_ERR error code if
+  * the operation failed or 0 if fn was run successfully.
+  */
+ static int idbm_for_each_iface(int *found, void *data,
+--- a/usr/iface.c
++++ b/usr/iface.c
+@@ -144,7 +144,7 @@ static int __iface_conf_read(struct ifac
+ 	if (!f) {
+ 		/*
+ 		 * if someone passes in default but has not defined
+-		 * a iface with default then we do it for them
++		 * an iface with default then we do it for them
+ 		 */
+ 		if (!strcmp(iface->name, DEFAULT_IFACENAME)) {
+ 			iface_setup_defaults(iface);
+@@ -1028,7 +1028,7 @@ int iface_setup_from_boot_context(struct
+ 								&rc);
+ 		if (rc) {
+ 			/*
+-			 * If the MAC in the boot info does not match a iscsi
++			 * If the MAC in the boot info does not match an iscsi
+ 			 * host then the MAC must be for network card, so boot
+ 			 * is not going to be offloaded.
+ 			 */
+@@ -1078,8 +1078,8 @@ int iface_setup_from_boot_context(struct
+  * @ifaces: list to store ifaces in
+  * @targets: list of targets to create ifaces from
+  *
+- * This function will create a iface struct based on the boot info
+- * and it will create (or update if existing already) a iface rec in
++ * This function will create an iface struct based on the boot info
++ * and it will create (or update if existing already) an iface rec in
+  * the ifaces dir based on the info.
+  */
+ int iface_create_ifaces_from_boot_contexts(struct list_head *ifaces,
+--- a/usr/initiator.c
++++ b/usr/initiator.c
+@@ -1773,7 +1773,7 @@ static iscsi_session_t* session_find_by_
+ 
+ /*
+  * a session could be running in the kernel but not in iscsid
+- * due to a resync or becuase some other app started the session
++ * due to a resync or because some other app started the session
+  */
+ static int session_is_running(node_rec_t *rec)
+ {
+@@ -2128,7 +2128,7 @@ iscsi_host_send_targets(queue_task_t *qt
+ }
+ 
+ /*
+- * HW drivers like qla4xxx present a interface that hides most of the iscsi
++ * HW drivers like qla4xxx present an interface that hides most of the iscsi
+  * details. Userspace sends down a discovery event then it gets notified
+  * if the sessions that were logged in as a result asynchronously, or
+  * the card will have sessions preset in the FLASH and will log into them
+--- a/usr/iscsi_sysfs.c
++++ b/usr/iscsi_sysfs.c
+@@ -818,7 +818,7 @@ static int iscsi_sysfs_read_iface(struct
+ 	if (session) {
+ 		/*
+ 		 * this was added after 2.0.869 so we could be doing iscsi_tcp
+-		 * session binding, but there may not be a ifacename set
++		 * session binding, but there may not be an ifacename set
+ 		 * if binding is not used.
+ 		 */
+ 		ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "ifacename",
+@@ -1216,7 +1216,7 @@ int iscsi_sysfs_session_has_leadconn(uin
+  * /sys/devices/platform/hostH/sessionS
+  *
+  * return the sid S. If just the sid is passed in it will be converted
+- * to a int.
++ * to an int.
+  */
+ int iscsi_sysfs_get_sid_from_path(char *session)
+ {
+--- a/usr/iscsi_util.c
++++ b/usr/iscsi_util.c
+@@ -284,7 +284,7 @@ static int iscsi_addr_match(char *addres
+ 
+ 	/*
+ 	 * didn't match so we have to resolve to see if one is a dnsname
+-	 * that matches a ip address.
++	 * that matches an ip address.
+ 	 */
+ 	rc = getaddrinfo(address1, NULL, &hints1, &res1);
+ 	if (rc) {
+--- a/usr/iscsiadm.c
++++ b/usr/iscsiadm.c
+@@ -287,7 +287,7 @@ static void kill_iscsid(int priority)
+  * And we can add a scsi_host mode which would display how
+  * sessions are related to hosts
+  * (scsi_host and iscsi_sessions are the currently running instance of
+- * a iface or node record).
++ * an iface or node record).
+  */
+ static int print_ifaces(struct iface_rec *iface, int info_level)
+ {
+@@ -574,7 +574,7 @@ login_by_startup(char *mode)
+ 			 * Note: We always try all iface records in case there
+ 			 * are targets that are associated with only a subset
+ 			 * of iface records.  __do_leading_login already
+-			 * prevents duplicate sessions if an iface has succeded
++			 * prevents duplicate sessions if an iface has succeeded
+ 			 * for a particular target.
+ 			 */
+ 		}
+@@ -1195,7 +1195,7 @@ do_target_discovery(discovery_rec_t *dre
+ 		rc = iface_conf_read(iface);
+ 		if (rc) {
+ 			log_error("Could not read iface info for %s. "
+-				  "Make sure a iface config with the file "
++				  "Make sure an iface config with the file "
+ 				  "name and iface.iscsi_ifacename %s is in %s.",
+ 				  iface->name, iface->name, IFACE_CONFIG_DIR);
+ 			list_del(&iface->list);
+@@ -2645,7 +2645,7 @@ static int exec_fw_disc_op(discovery_rec
+ 			rc = iface_conf_read(iface);
+ 			if (rc) {
+ 				log_error("Could not read iface info for %s. "
+-					  "Make sure a iface config with the "
++					  "Make sure an iface config with the "
+ 					  "file name and iface.iscsi_ifacename "
+ 					  "%s is in %s.", iface->name,
+ 					  iface->name, IFACE_CONFIG_DIR);
+@@ -2659,7 +2659,7 @@ static int exec_fw_disc_op(discovery_rec
+ 
+ 	/*
+ 	 * Next, check if we see any offload cards. If we do then
+-	 * we make a iface if needed.
++	 * we make an iface if needed.
+ 	 *
+ 	 * Note1: if there is not a offload card we do not setup
+ 	 * software iscsi binding with the nic used for booting,
+--- a/usr/iscsistart.c
++++ b/usr/iscsistart.c
+@@ -97,7 +97,7 @@ Open-iSCSI initiator.\n\
+   -i, --initiatorname=name set InitiatorName to name (Required)\n\
+   -t, --targetname=name    set TargetName to name (Required)\n\
+   -g, --tgpt=N             set target portal group tag to N (Required)\n\
+-  -a, --address=A.B.C.D    set IP addres to A.B.C.D (Required)\n\
++  -a, --address=A.B.C.D    set IP address to A.B.C.D (Required)\n\
+   -p, --port=N             set port to N (Default 3260)\n\
+   -u, --username=N         set username to N (optional)\n\
+   -w, --password=N         set password to N (optional\n\
+--- a/usr/login.c
++++ b/usr/login.c
+@@ -1559,7 +1559,7 @@ repoll:
+ 		log_debug(7, "%s: Poll return %d", __FUNCTION__, ret);
+ 		if (iscsi_timer_expired(&connection_timer)) {
+ 			log_warning("Login response timeout. Waited %d "
+-				    "seconds and did not get reponse PDU.",
++				    "seconds and did not get response PDU.",
+ 				    session->conn[0].active_timeout);
+ 			c->ret = LOGIN_FAILED;
+ 			return c->ret;

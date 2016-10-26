@@ -1,0 +1,40 @@
+#!/bin/sh
+
+set -e
+
+. debian/tests/sysvinit.inc
+
+die()
+{
+  echo "$@" >&2
+  exit 1
+}
+
+if [ -z "$ISCSI_TARGET_IP" ] || [ -z "$ISCSI_TARGET_NAME" ] ; then
+  echo "SKIP: skipping current test because ISCSI_TARGET_IP/ISCSI_TARGET_NAME are not set"
+  exit 0
+fi
+
+service iscsid status >/dev/null 2>&1 || die "iscsid not running"
+
+# Discover targets
+iscsiadm -m discovery -t sendtargets -p "$ISCSI_TARGET_IP" || die "iSCSI discovery failed"
+
+# Log in to nodes
+iscsiadm -m node -p "$ISCSI_TARGET_IP" -T "$ISCSI_TARGET_NAME" --login || die "iSCSI login failed"
+
+# Make sure udev had time to process the device events (wait max 60s)
+udevadm settle -t 60 || die "udevadm settle failed"
+
+# Check that we imported a single iSCSI drive
+num_devices=0
+last_device=
+for dev in /sys/class/iscsi_session/session*/device/target*/*\:*/block/* ; do
+  [ -d "$dev/" ] || continue
+  num_devices=$((num_devices + 1))
+  last_device="$dev"
+done
+[ $num_devices -eq 1 ] || die "Found $num_devices iSCSI drives, expected 1 (last device was ${last_device})"
+
+last_device=$(basename $last_device)
+echo "Found 1 iSCSI drive: /dev/$last_device"

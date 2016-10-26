@@ -1,0 +1,55 @@
+open-iscsi (2.0.873+git0.3b4b4500-10) unstable; urgency=low
+
+  RESTARTING OF ISCSID ON UPGRADES
+
+  On updates, iscsid is now restarted (it previously wasn't). This is
+  supported and as long as the new iscsid is able log in to the
+  targets again, everything will continue to work. Filesystems DO NOT
+  have to be unmounted, I/O will just block for a couple of seconds
+  until the connections with the targets are reestablished.
+
+  Note that to achieve this, open-iscsi now uses two init scripts /
+  systemd services:
+     - iscsid starts/stops the daemon (only this is restarted when
+       upgrading)
+     - open-iscsi logs in and out of targets (previously also started
+       the daemon)
+
+  The previous method of keeping the old iscsid running on upgrades
+  was not actually supported upstream.
+
+  Note that due to these changes, any attempt to downgrade to version
+  2.0.873+git0.3b4b4500-9 or earlier will badly break your open-iscsi
+  installation.
+
+
+
+  ROOT FILESYSTEMS ON ISCSI
+
+  Previously, if the root filesystem was on iSCSI, open-iscsi would
+  not log out of any session at shutdown. This behavior has changed,
+  only the session that carries the root filesystem will be kept, all
+  other sessions will be logged out. If for some reason your storage
+  setup is not properly detected, you may return to the old behavior
+  by setting ISCSI_ROOT_KEEP_ALL_SESSIONS_AT_SHUTDOWN=1 in
+  /etc/default/open-iscsi.
+
+
+
+  HANDLE_NETDEV=0 BEHAVIOR CHANGE
+
+  If you are running sysvinit and have HANDLE_NETDEV=0, please note
+  that this flag is now also checked at bootup, i.e. filesystems with
+  _netdev will not be mounted automatically at boot anymore by
+  open-iscsi. (Previously, this flag was only checked at shutdown.)
+  On systemd systems, HANDLE_NETDEV is now completely ignored, as
+  systemd handles mounting of network filesystems directly.
+
+
+
+  PURGING OPEN-ISCSI
+
+  If you purge open-iscsi, it will now remove the database in
+  /etc/iscsi (it previously didn't).
+
+ -- Christian Seiler <christian@iwakd.de>  Thu, 20 Aug 2015 11:08:37 +0200

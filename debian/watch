@@ -1,0 +1,3 @@
+version=3
+opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/open-iscsi-$1\.tar\.gz/ \
+  https://github.com/open-iscsi/open-iscsi/releases .*/v?(\d\S*)\.tar\.gz

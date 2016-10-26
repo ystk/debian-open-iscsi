@@ -1,0 +1,10 @@
+bugfixes/reproducible.patch
+bugfixes/no-make-clean-kernel.patch
+bugfixes/typo-github-pr2.patch
+bugfixes/typo-github-pr13.patch
+bugfixes/man-github-pr16.patch
+bugfixes/spelling-github-pr17.patch
+bugfixes/additional-spelling.patch
+debian/var-run-lock.patch
+debian/dont-link-against-openssl.patch
+debian/udeb-without-libmount.patch

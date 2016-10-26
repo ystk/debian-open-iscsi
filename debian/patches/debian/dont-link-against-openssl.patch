@@ -1,0 +1,27 @@
+Description: Don't link against OpenSSL
+ GPL programs are legally not allowed to be linked against OpenSSL in
+ Debian. Link against libisns-nocrypto instead of libisns, and don't
+ link against libcrypto.
+ .
+ As the iSNS functionality in open-iscsi does not use the cryptographic
+ capabilities of open-isns anyway, this has no impact on functionality.
+Author: Christian Seiler <christian@iwakd.de>
+Forwarded: not-needed (Debian-specific)
+Last-Update: 2016-07-27
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/usr/Makefile
++++ b/usr/Makefile
+@@ -54,10 +54,10 @@ all: $(PROGRAMS)
+ 
+ iscsid: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
+ 	iscsid.o session_mgmt.o discoveryd.o mntcheck.o
+-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@  -lisns -lcrypto -lrt -lmount
++	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@  -lisns-nocrypto -lrt -lmount
+ 
+ iscsiadm: $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS) iscsiadm.o session_mgmt.o mntcheck.o
+-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lisns -lcrypto -lmount
++	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lisns-nocrypto -lmount
+ 
+ iscsistart: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
+ 		iscsistart.o statics.o

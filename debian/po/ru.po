@@ -1,0 +1,182 @@
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the open-iscsi package.
+#
+# Yuri Kozlov <yuray@komyakino.ru>, 2015.
+msgid ""
+msgstr ""
+"Project-Id-Version: open-iscsi 2.0.873+git0.3b4b4500-12\n"
+"Report-Msgid-Bugs-To: open-iscsi@packages.debian.org\n"
+"POT-Creation-Date: 2015-09-30 06:58+0200\n"
+"PO-Revision-Date: 2015-10-12 20:43+0300\n"
+"Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
+"Language-Team: Russian <debian-l10n-russian@lists.debian.org>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"X-Generator: Lokalize 1.5\n"
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:2001
+msgid "Proceed with removing open-iscsi?"
+msgstr "Продолжить удаление open-iscsi?"
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:2001
+msgid ""
+"There are currently active iSCSI sessions. If you remove open-iscsi now this "
+"may lead to data loss and/or hang the system at shutdown."
+msgstr ""
+"В настоящий момент имеются активные сеансы iSCSI. Если вы удалите open-iscsi "
+"прямо сейчас, то это может привести к потере данных и/или подвисании системы "
+"при выключении."
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:2001
+msgid "Do not do this if this system's root filesystem is on iSCSI."
+msgstr ""
+"Не делайте этого, если в качестве корневой файловой системы используется "
+"iSCSI."
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:2001
+msgid ""
+"If you do proceed, open-iscsi will try to unmount all filesystems on iSCSI "
+"and log out from current sessions. If that fails (because a filesystem is "
+"still in use), the kernel will keep the current iSCSI sessions open, but "
+"will not perform any recovery if there is an interruption of the network "
+"connection (or if the target is rebooted)."
+msgstr ""
+"При продолжении open-iscsi попытается размонтировать все файловые системы с "
+"iSCSI и отключить все текущие сеансы. Если возникнет ошибка (так как "
+"файловая система всё ещё используется), то ядро оставит текущие сеансы iSCSI "
+"открытыми, но не будет выполнять их восстановление при проблемах с сетью "
+"(или если дальний конец перезагрузится)."
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:2001
+msgid ""
+"If you really intend to remove open-iscsi, you should abort here and then "
+"stop open-iscsi:"
+msgstr ""
+"Если вы действительно намерены удалить open-iscsi, то прервите удаление "
+"прямо сейчас и остановите open-iscsi:"
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:2001
+msgid ""
+"If that did not clean up everything, manually umount all filesystems that "
+"are on iSCSI, manually dismantle the storage stack, and only then log out "
+"from all iSCSI sessions:"
+msgstr ""
+"Если что-то при этом не очистилось, то вручную размонтируйте все файловые "
+"системы с iSCSI, вручную разберите стек хранения и только затем отключите "
+"все текущие сеансы iSCSI:"
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:2001
+msgid "At that point, it should be safe to remove this package."
+msgstr "После этого можно безопасно удалять этот пакет."
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:3001
+msgid "Proceed with upgrading open-iscsi?"
+msgstr "Продолжить обновление open-iscsi?"
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:3001
+msgid ""
+"There are currently failed iSCSI sessions. Upgrading open-iscsi may cause "
+"data loss."
+msgstr ""
+"В настоящий момент имеются сеансы iSCSI с ошибкой. Обновление open-iscsi "
+"может привести к потере данных."
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:3001
+msgid ""
+"If you do not proceed, the preinstallation script will be aborted and you "
+"will have the option to manually recover the iSCSI sessions. (Note that "
+"aborting an upgrade is problematic if you are dist-upgrading your entire "
+"system.) You may also recover the iSCSI sessions manually while keeping this "
+"prompt open and then choose to proceed. Or you may choose to proceed "
+"directly, after which iscsid will be restarted and session recovery will be "
+"attempted once more."
+msgstr ""
+"При отказе от продолжения предустановочный сценарий будет прерван и вы "
+"можете вручную восстановить сеансы iSCSI (заметим, что прерывание обновления "
+"проблематично, если вы выполняете обновление всей системы с дистрибутива). "
+"Также вы можете восстановить сеансы iSCSI вручную оставив это окно с "
+"предложением открытым и затем выберете продолжить. Или вы можете выбрать "
+"продолжить сразу, после чего будет перезапущен iscsid и будет предпринята "
+"ещё одна попытка восстановления сеанса."
+
+#. Type: error
+#. Description
+#: ../open-iscsi.templates:4001
+msgid "iSCSI recovery error on upgrade"
+msgstr "Ошибка восстановления iSCSI при обновлении"
+
+#. Type: error
+#. Description
+#: ../open-iscsi.templates:4001
+msgid ""
+"The iscsid daemon was restarted, but couldn't recover all iSCSI sessions. "
+"This is bad and could lead to data loss. Please check the system and kernel "
+"logs to determine the cause of the issue."
+msgstr ""
+"Служба iscsid была перезапущена, но не смогла восстановить все сеансы iSCSI. "
+"Это плохо и могло привести к потере данных. Чтобы найти причину проблемы "
+"проверьте журналы системы и ядра."
+
+#. Type: error
+#. Description
+#: ../open-iscsi.templates:4001
+msgid ""
+"Please do not acknowledge this note until you have fixed the problem from a "
+"separate login shell."
+msgstr ""
+"Не игнорируйте это замечание, пока не решите проблему в другой оболочке "
+"входа в систему."
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:5001
+msgid "Proceed with downgrading open-iscsi?"
+msgstr "Продолжить установку старой версии open-iscsi?"
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:5001
+msgid ""
+"You are trying to downgrade open-iscsi. Because of changes between the "
+"version you are downgrading to and the version currently installed, this "
+"downgrade will break the system."
+msgstr ""
+"Вы пытаетесь установить версию open-iscsi, которая старее имеющейся. Из-за "
+"разницы в версиях такая установка сломает систему."
+
+#. Type: boolean
+#. Description
+#: ../open-iscsi.templates:5001
+msgid ""
+"If you really intend to downgrade, please follow the following procedure "
+"instead: umount all iSCSI file systems, log out of all iSCSI sessions, back "
+"up /etc/iscsi, purge open-iscsi, and reinstall the older version."
+msgstr ""
+"Если вам действительно нужно установить старую версию, то делайте так: "
+"размонтируйте все файловые системы iSCSI, завершите все сеансы iSCSI, "
+"сделайте резервную копию /etc/iscsi, вычистите пакет open-iscsi и "
+"переустановите старую версию."

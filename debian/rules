@@ -1,0 +1,77 @@
+#!/usr/bin/make -f
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CFLAGS_MAINT_APPEND = -Wall
+
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/default.mk
+
+%:
+	dh $@ --with autotools_dev,autoreconf,systemd
+
+DEB_UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -rne 's,^Version: ([^-]+).*,\1,p')
+
+get-orig-source:
+	uscan --force-download --rename --repack --download-version=$(DEB_UPSTREAM_VERSION) --destdir=.
+
+override_dh_auto_build:
+	@# The build system doesn't support CPPFLAGS
+	env CFLAGS="$(CPPFLAGS) $(CFLAGS)" dh_auto_build
+	@# Build udeb variant without libmount
+	mkdir -p build.deb
+	cp -a usr/iscsid usr/iscsistart build.deb/
+	rm usr/initiator_common.o usr/mntcheck.o usr/iscsid usr/iscsistart
+	env CFLAGS="$(CPPFLAGS) $(CFLAGS) -DNO_LIBMOUNT" dh_auto_build -- LIBMOUNT_LIB=
+
+override_dh_auto_install:
+	@# do nothing, we install stuff with dh_install etc.
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf build.deb
+
+override_dh_fixperms:
+	dh_fixperms
+	@# That configuration file might contain authentication data, so
+	@# don't make it world-readable. See bug #735773 for details.
+	chmod 0600 $(CURDIR)/debian/open-iscsi/etc/iscsi/iscsid.conf
+	@# Since this file is copied from the installer ramdisk to the
+	@# system if the udeb is used, the permissions need to be changed
+	@# here as well.
+	@# However, we might be building on an architecture that doesn't
+	@# have udeb support yet (see debian/control), so see if it was
+	@# installed during build before trying to adjust permissions.
+	if [ -f $(CURDIR)/debian/open-iscsi-udeb/etc/iscsi/iscsid.conf ] ; then \
+		chmod 0600 $(CURDIR)/debian/open-iscsi-udeb/etc/iscsi/iscsid.conf ; \
+	fi
+
+override_dh_installchangelogs:
+	dh_installchangelogs -piscsiuio iscsiuio/ChangeLog
+	dh_installchangelogs --remaining-packages
+
+override_dh_installinit:
+	dh_installinit -popen-iscsi --no-start --name=iscsid
+	dh_installinit -popen-iscsi --no-start
+	dh_installinit --remaining-packages
+
+override_dh_systemd_enable:
+	dh_systemd_enable -popen-iscsi --name=iscsid
+	dh_systemd_enable -popen-iscsi
+	dh_systemd_enable --remaining-packages
+
+override_dh_systemd_start:
+	dh_systemd_start -popen-iscsi --no-restart-on-upgrade --no-start iscsid.service open-iscsi.service
+	dh_systemd_start --remaining-packages
+
+# The following is taken from the initramfs-tools package. (We recommend
+# busybox in the initramfs because otherwise we don't have access to the
+# ip utility to set the default gateway after iscsistart -N is done.)
+# On Debian we can use either busybox or busybox-static, but on Ubuntu
+# and derivatives only busybox-initramfs will work.
+BUSYBOX_PACKAGES := $(shell if dpkg-vendor --derives-from ubuntu; then echo busybox-initramfs; else echo busybox busybox-static; fi)
+
+override_dh_gencontrol:
+	echo >> debian/open-iscsi.substvars "busybox:Recommends=$(wordlist 2,100,$(BUSYBOX_PACKAGES:%=| %))"
+	dh_gencontrol

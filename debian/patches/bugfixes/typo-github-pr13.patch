@@ -1,0 +1,33 @@
+Description: typo in man iscsiadm(8)
+Forwarded: https://github.com/open-iscsi/open-iscsi/pull/13
+Author: Christian Hesse <mail@eworm.de>
+Last-Update: 2015-09-17
+
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+
+ doc/iscsiadm.8 | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/doc/iscsiadm.8 b/doc/iscsiadm.8
+index c7d8c92..ad6e0cc 100644
+--- a/doc/iscsiadm.8
++++ b/doc/iscsiadm.8
+@@ -301,7 +301,7 @@ all discovered targets.
+ This option is only valid for discovery and node modes.
+ 
+ .TP
+-\fB\-L\fR, \fB\-\-loginall==\fI[all|manual|automatic]\fR
++\fB\-L\fR, \fB\-\-loginall=\fI[all|manual|automatic]\fR
+ For node mode, login all sessions with the node or conn startup values passed
+ in or all running sesssion, except ones marked onboot, if all is passed in.
+ .IP
+@@ -443,7 +443,7 @@ logout for a specified record.
+ This option is only valid for node and session mode.
+ 
+ .TP
+-\fB\-U\fR, \fB\-\-logoutall==\fI[all,manual,automatic]\fR
++\fB\-U\fR, \fB\-\-logoutall=\fI[all,manual,automatic]\fR
+ logout all sessions with the node or conn startup values passed in or all
+ running sesssion, except ones marked onboot, if all is passed in.
+ .IP

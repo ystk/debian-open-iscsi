@@ -1,0 +1,1 @@
+open-iscsi-udeb udeb: non-standard-file-perm etc/iscsi/iscsid.conf 0600 != 0644

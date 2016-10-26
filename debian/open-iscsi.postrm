@@ -1,0 +1,43 @@
+#!/bin/sh
+# postrm script for open-iscsi
+
+set -e
+
+case "$1" in
+    purge)
+        if [ -d /etc/iscsi ] ; then
+            rm -rf /etc/iscsi
+        fi
+    ;;
+
+    remove)
+	for file in iscsid iscsi_discovery iscsi-iname iscsistart; do
+		if [ -L /usr/sbin/$file ]; then
+			rm /usr/sbin/$file
+		fi
+	done
+    ;;
+
+    abort-upgrade)
+	if dpkg --compare-versions "$2" le-nl "2.0.873+git0.3b4b4500-12" ; then
+	    # Since we moved that away because it was no longer a conffile in
+	    # the new version, we have to move it back now, to make sure the
+	    # old version remains intact.
+	    if [ -f /etc/iscsi/initiatorname.iscsi.dpkg-backup ] && ! [ -f /etc/iscsi/initiatorname.iscsi ] ; then
+		mv -f /etc/iscsi/initiatorname.iscsi.dpkg-backup /etc/iscsi/initiatorname.iscsi
+	    fi
+	fi
+    ;;
+
+    upgrade|failed-upgrade|abort-install|disappear)
+    ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

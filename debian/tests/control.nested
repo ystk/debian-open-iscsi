@@ -1,0 +1,3 @@
+Tests: login, sysvinit-login
+Restrictions: needs-root, isolation-machine, breaks-testbed
+Depends: open-iscsi

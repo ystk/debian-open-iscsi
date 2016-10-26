@@ -1,0 +1,83 @@
+#!/bin/sh
+
+set -e
+
+die()
+{
+  echo "$@" >&2
+  exit 1
+}
+
+if ! [ -e "/dev/baseimage" ] ; then
+  echo "SKIP: skipping nested tests because /dev/baseimage does not exist"
+  exit 0
+fi
+
+ISCSI_IP=$(python3 debian/tests/find_free_ip.py)
+ISCSI_NAME=iqn.2003-01.org.linux-iscsi.debian.autopkgtest
+
+[ -n "$ISCSI_IP" ]      || die "$0: couldn't find free ip to use for iSCSI target"
+[ -n "$ADT_ARTIFACTS" ] || die "$0: ADT_ARTIFACTS not set"
+
+echo "Creating dummy interface with iSCSI target IP $ISCSI_IP"
+
+# Create iSCSI interface
+modprobe dummy
+ip link add name iscsi0 type dummy
+ip link set dev iscsi0 up
+ip -4 addr add "${ISCSI_IP}/24" dev iscsi0
+
+echo "Setting up iSCSI target"
+
+# Create disk image and export it (qemu-img create will be sparse by default)
+qemu-img create -f raw /tmp/iscsi_disk.img 100M
+targetcli backstores/fileio/ create name=disk0 file_or_dev=/tmp/iscsi_disk.img size=100M
+targetcli iscsi/ create "${ISCSI_NAME}"
+targetcli iscsi/"${ISCSI_NAME}"/tpg1/luns/ create /backstores/fileio/disk0
+targetcli iscsi/"${ISCSI_NAME}"/tpg1/portals/ create "$ISCSI_IP" 3260
+targetcli iscsi/"${ISCSI_NAME}"/tpg1/ set attribute authentication=0 demo_mode_write_protect=0 generate_node_acls=1 cache_dynamic_acls=1
+
+BINARY_PATH="$(grep -v ^# /etc/apt/sources.list.d/autopkgtest.list 2>/dev/null | grep -v ^$ | sed 's%.*file://\([^ ]*\) .*%\1%' | head -n 1)"
+
+# Reuse binary packages
+BINARY_ARGS=""
+
+for pkg in "${BINARY_PATH}/"*.deb ; do
+  if [ -f "$pkg" ] ; then
+    BINARY_ARGS="${BINARY_ARGS:+$BINARY_ARGS }$pkg"
+  fi
+done
+
+# We pretend that this is a built tree here, because we don't want to
+# trigger a rebuild. That's fine, because even if there was a build
+# required here, they will have been added to the binary package
+# repository.
+
+echo "Calling nested autopkgtest with debian/tests/control.nested"
+
+# Call autopkgtest for the nested tests; also allocate less RAM than we
+# have, otherwise QEMU won't start. 10/16ths is a good ration, because
+# we haven't started much in this VM - and with a default ram size of
+# 1 GiB (see autopkgtest-qemu) this would give us a reasonable 640 MiB
+# of RAM in the nested VM.
+# FIXME: Possibly add some swap space...
+RAM_SIZE=$(grep MemTotal: /proc/meminfo | awk '{print int($2/1024/16*10)}')
+
+set +e
+autopkgtest -B -o "$ADT_ARTIFACTS/nested" -U --override-control debian/tests/control.nested \
+   --env "ISCSI_TARGET_IP=$ISCSI_IP" --env "ISCSI_TARGET_NAME=$ISCSI_NAME" \
+   $BINARY_ARGS $PWD/ \
+   -- qemu --ram-size $RAM_SIZE /dev/baseimage
+RC=$?
+case $RC in
+  0|2)
+    # adt-run exit code 2 signifies skipped tests - but that shouldn't
+    # cause the outer-layered test to fail
+    exit 0
+    ;;
+  *)
+    exit $RC
+    ;;
+esac
+
+exit 0

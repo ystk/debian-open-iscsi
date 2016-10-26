@@ -1,0 +1,5 @@
+TODO for package open-iscsi
+---------------------------
+
+ - find a way to make event-based activation work on sysvinit systems
+   and then deprecate the current LVM hacks

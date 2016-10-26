@@ -1,0 +1,83 @@
+Source: open-iscsi
+Section: net
+Priority: optional
+Maintainer: Debian iSCSI Maintainers <pkg-iscsi-maintainers@lists.alioth.debian.org>
+Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
+           Christian Seiler <christian@iwakd.de>
+Build-Depends: autotools-dev,
+               bison,
+               bzip2,
+               debhelper (>= 9),
+               dh-autoreconf,
+               dh-exec,
+               dh-systemd,
+               dpkg-dev (>= 1.16.1~),
+               flex,
+               libisns-dev (>= 0.96-4~),
+               libmount-dev,
+               po-debconf
+Standards-Version: 3.9.8
+Vcs-Git: https://anonscm.debian.org/git/pkg-iscsi/open-iscsi.git
+Vcs-Browser: https://anonscm.debian.org/cgit/pkg-iscsi/open-iscsi.git
+Homepage: http://www.open-iscsi.com/
+Testsuite: autopkgtest
+
+Package: open-iscsi
+Architecture: linux-any
+Depends: udev, ${misc:Depends}, ${shlibs:Depends}
+Recommends: ${busybox:Recommends}
+Pre-Depends: debconf | debconf-2.0
+Description: iSCSI initiator tools
+ Open-iSCSI is a high-performance, transport independent, multi-platform
+ implementation of the RFC3720 Internet Small Computer Systems Interface
+ (iSCSI).
+ .
+ Open-iSCSI is partitioned into user and kernel parts, where the kernel
+ portion implements the iSCSI data path (i.e. iSCSI Read and iSCSI Write).
+ The userspace contains the entire control plane:
+  * Configuration Manager;
+  * iSCSI Discovery;
+  * Login and Logout processing;
+  * Connection level error processing;
+  * Nop-In and Nop-Out handling;
+  * (in the future) Text processing, iSNS, SLP, Radius, etc.
+ .
+ This package includes a daemon, iscsid, and a management utility,
+ iscsiadm.
+
+Package: iscsiuio
+Architecture: linux-any
+Depends: udev, ${misc:Depends}, ${shlibs:Depends}
+Enhances: open-iscsi
+Description: iSCSI offloading daemon for QLogic devices
+ Open-iSCSI is a high-performance, transport independent, multi-platform
+ implementation of the RFC3720 Internet Small Computer Systems Interface
+ (iSCSI).
+ .
+ This package contains the userspace offloading daemon, for use with
+ QLogic (formerly Broadcom) NetXtreme II hardware, as supported by the
+ 'bnx2' and 'bnx2x' drivers, in conjunction with the 'bnx2i' driver.
+ .
+ The following network controllers are supported:
+  bnx2:  BCM5706, BCM5708, BCM5709 devices
+  bnx2x: BCM57710, BCM57711, BCM57711E, BCM57712, BCM57712E, BCM57800,
+         BCM57810, BCM57840
+ .
+ This package is required to offload iSCSI onto these devices.
+
+Package: open-iscsi-udeb
+# Note: the (virtual) udeb package scsi-modules (provided by different
+#       linux kernel udebs) must exist for these architectures - so
+#       check that before adding them to this list; the other
+#       scsi-(core|common|...)-modules are NOT sufficient!
+Architecture: amd64 arm64 armhf i386 ia64 mips mipsel powerpc ppc64 ppc64el s390x
+Section: debian-installer
+Package-Type: udeb
+Depends: scsi-modules, ${misc:Depends}, ${shlibs:Depends}
+Description: Configure iSCSI
+ Open-iSCSI is a high-performance, transport independent, multi-platform
+ implementation of the RFC3720 Internet Small Computer Systems Interface
+ (iSCSI).
+ .
+ This is the minimal package (udeb) used by debian-installer.
+

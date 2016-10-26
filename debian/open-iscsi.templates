@@ -1,0 +1,71 @@
+# These templates have been reviewed by the debian-l10n-english
+# team
+#
+# If modifications/additions/rewording are needed, please ask
+# debian-l10n-english@lists.debian.org for advice.
+#
+# Even minor modifications require translation updates and such
+# changes should be coordinated with translators and reviewers.
+
+Template: open-iscsi/remove_even_with_active_sessions
+Type: boolean
+#flag:translate!:6,8
+_Description: Proceed with removing open-iscsi?
+ There are currently active iSCSI sessions. If you remove open-iscsi
+ now this may lead to data loss and/or hang the system at shutdown.
+ .
+ Do not do this if this system's root filesystem is on iSCSI.
+ .
+ If you do proceed, open-iscsi will try to unmount all filesystems on
+ iSCSI and log out from current sessions. If that fails (because a
+ filesystem is still in use), the kernel will keep the current
+ iSCSI sessions open, but will not perform any recovery if there is an
+ interruption of the network connection (or if the target is rebooted).
+ .
+ If you really intend to remove open-iscsi, you should abort here and
+ then stop open-iscsi:
+ .
+   service open-iscsi stop
+ .
+ If that did not clean up everything, manually umount all filesystems
+ that are on iSCSI, manually dismantle the storage stack, and only then
+ log out from all iSCSI sessions:
+ .
+   iscsiadm -m node --logoutall=all
+ .
+ At that point, it should be safe to remove this package.
+
+Template: open-iscsi/upgrade_even_with_failed_sessions
+Type: boolean
+_Description: Proceed with upgrading open-iscsi?
+ There are currently failed iSCSI sessions. Upgrading open-iscsi may
+ cause data loss.
+ .
+ If you do not proceed, the preinstallation script will be aborted and
+ you will have the option to manually recover the iSCSI sessions. (Note
+ that aborting an upgrade is problematic if you are dist-upgrading your
+ entire system.) You may also recover the iSCSI sessions manually while
+ keeping this prompt open and then choose to proceed. Or you may choose
+ to proceed directly, after which iscsid will be restarted and session
+ recovery will be attempted once more.
+
+Template: open-iscsi/upgrade_recovery_error
+Type: error
+_Description: iSCSI recovery error on upgrade
+ The iscsid daemon was restarted, but couldn't recover all iSCSI sessions.
+ This is bad and could lead to data loss. Please check the system and kernel
+ logs to determine the cause of the issue.
+ .
+ Please do not acknowledge this note until you have fixed the problem
+ from a separate login shell.
+
+Template: open-iscsi/downgrade_and_break_system
+Type: boolean
+_Description: Proceed with downgrading open-iscsi?
+ You are trying to downgrade open-iscsi. Because of changes between the
+ version you are downgrading to and the version currently installed,
+ this downgrade will break the system.
+ .
+ If you really intend to downgrade, please follow the following procedure
+ instead: umount all iSCSI file systems, log out of all iSCSI sessions,
+ back up /etc/iscsi, purge open-iscsi, and reinstall the older version.

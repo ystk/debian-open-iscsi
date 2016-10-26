@@ -1,0 +1,14 @@
+#!/usr/bin/dh-exec
+usr/iscsiadm                           /sbin
+build.deb/iscsid                       /sbin
+build.deb/iscsistart                   /sbin
+utils/iscsi_discovery                  /sbin
+utils/iscsi-iname                      /sbin
+etc/iscsid.conf                        /etc/iscsi
+debian/extra/initramfs.hook         => /usr/share/initramfs-tools/hooks/iscsi
+debian/extra/initramfs.local-top    => /usr/share/initramfs-tools/scripts/local-top/iscsi
+debian/extra/umountiscsi.sh            /lib/open-iscsi
+debian/extra/logout-all.sh             /lib/open-iscsi
+debian/extra/startup-checks.sh         /lib/open-iscsi
+debian/extra/activate-storage.sh       /lib/open-iscsi
+debian/open-iscsi.kmod              => /lib/modules-load.d/open-iscsi.conf

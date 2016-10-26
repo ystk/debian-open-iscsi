@@ -1,0 +1,34 @@
+#!/bin/sh
+
+set -e
+
+. debian/tests/sysvinit.inc
+
+die()
+{
+  echo "$@" >&2
+  exit 1
+}
+
+die_with_file()
+{
+  file="$1"
+  shift
+  echo "$@" >&2
+  echo "contents of $file:" >&2
+  cat "$file" >&2
+  exit 1
+}
+
+DEBIAN_FRONTEND=noninteractive apt-get -y install open-iscsi </dev/null
+
+[ -d /etc/iscsi ] || die "/etc/iscsi not a directory"
+
+# Make sure an initiator name was generated
+[ -f /etc/iscsi/initiatorname.iscsi ] || die "/etc/iscsi/initiatorname.iscsi not a file"
+grep -vq '^GenerateName=yes' /etc/iscsi/initiatorname.iscsi || die_with_file /etc/iscsi/initiatorname.iscsi "GenerateName=yes is set"
+grep -q '^InitiatorName=' /etc/iscsi/initiatorname.iscsi || die_with_file /etc/iscsi/initiatorname.iscsi "InitiatorName is not set"
+
+# Make sure the daemon is started
+service iscsid status || die "iscsid not running"
+pgrep -c iscsid >/dev/null || die "iscsid not running"

@@ -1,0 +1,19 @@
+#! /bin/sh
+
+set -e
+
+got_iscsi=
+for f in /etc/iscsi/*; do
+	[ -e "$f" ] || continue
+	got_iscsi=1
+	break
+done
+
+if [ "$got_iscsi" ]; then
+	# Copy the configuration to the target...
+	cp -a /etc/iscsi /target/etc/
+	if [ -x /target/usr/sbin/update-initramfs ] ; then
+		echo "iSCSI detected, refreshing initramfs"
+		/bin/in-target update-initramfs -k all -u
+	fi
+fi

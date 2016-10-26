@@ -1,0 +1,7 @@
+Tests: install sysvinit-install
+Restrictions: needs-root isolation-machine breaks-testbed
+Depends:
+
+Tests: nested
+Restrictions: needs-root, isolation-machine, breaks-testbed, allow-stderr
+Depends: targetcli, autopkgtest, qemu-system, qemu-utils, python3, python3-netifaces
