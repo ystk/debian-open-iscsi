@@ -24,7 +24,7 @@ Testsuite: autopkgtest
 
 Package: open-iscsi
 Architecture: linux-any
-Depends: udev, ${misc:Depends}, ${shlibs:Depends}
+Depends: udev, ${misc:Depends}, ${shlibs:Depends}, lsb-base (>= 3.0-6)
 Recommends: ${busybox:Recommends}
 Pre-Depends: debconf | debconf-2.0
 Description: iSCSI initiator tools

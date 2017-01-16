@@ -214,8 +214,10 @@ enumerate_iscsi_devices() {
 	ISCSI_EXCLUDED_SESSIONS=""
 
 	# Look for all iscsi disks
-	for _host_dir in /sys/devices/platform/host* ; do
-		[ -d "$_host_dir"/iscsi_host* ] || continue
+	for _host_dir in /sys/devices/platform/host* /sys/devices/pci*/*/*/host* ; do
+		if ! [ -d "$_host_dir"/iscsi_host* ] || ! [ -d "$_host_dir"/iscsi_host/host* ] ; then
+			continue
+		fi
 		for _session_dir in "$_host_dir"/session* ; do
 			[ -d "$_session_dir"/target* ] || continue
 			for _block_dev_dir in "$_session_dir"/target*/*\:*/block/* ; do

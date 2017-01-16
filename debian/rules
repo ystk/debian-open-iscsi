@@ -17,6 +17,17 @@ get-orig-source:
 	uscan --force-download --rename --repack --download-version=$(DEB_UPSTREAM_VERSION) --destdir=.
 
 override_dh_auto_build:
+	@# We want to regenerate the parser/lexer files with bison/flex
+	@# to make sure that the package is fully built from source.
+	@# Store the generated files upstream added to the source
+	@# tarball away and explicitly call flex/bison here.
+	mv utils/fwparam_ibft/prom_lex.c       utils/fwparam_ibft/prom_lex.c.upstream
+	mv utils/fwparam_ibft/prom_parse.tab.c utils/fwparam_ibft/prom_parse.tab.c.upstream
+	mv utils/fwparam_ibft/prom_parse.tab.h utils/fwparam_ibft/prom_parse.tab.h.upstream
+	cd utils/fwparam_ibft && flex -t prom_lex.l | \
+		../../debian/workaround_flex_bug.sh > prom_lex.c
+	cd utils/fwparam_ibft && bison -d prom_parse.y
+
 	@# The build system doesn't support CPPFLAGS
 	env CFLAGS="$(CPPFLAGS) $(CFLAGS)" dh_auto_build
 	@# Build udeb variant without libmount
@@ -31,6 +42,11 @@ override_dh_auto_install:
 override_dh_auto_clean:
 	dh_auto_clean
 	rm -rf build.deb
+	@# Make dpkg-source happy and restore upstream's generated lexer/parser files
+	@# in the clean step.
+	! [ -f utils/fwparam_ibft/prom_lex.c.upstream ]       || mv utils/fwparam_ibft/prom_lex.c.upstream       utils/fwparam_ibft/prom_lex.c
+	! [ -f utils/fwparam_ibft/prom_parse.tab.c.upstream ] || mv utils/fwparam_ibft/prom_parse.tab.c.upstream utils/fwparam_ibft/prom_parse.tab.c
+	! [ -f utils/fwparam_ibft/prom_parse.tab.h.upstream ] || mv utils/fwparam_ibft/prom_parse.tab.h.upstream utils/fwparam_ibft/prom_parse.tab.h
 
 override_dh_fixperms:
 	dh_fixperms

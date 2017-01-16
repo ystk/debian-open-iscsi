@@ -31,6 +31,10 @@ echo "Setting up iSCSI target"
 
 # Create disk image and export it (qemu-img create will be sparse by default)
 qemu-img create -f raw /tmp/iscsi_disk.img 100M
+# Since we add a portal manually, we need to make sure not to automatically
+# add a new portal when creating the initial TPG, otherwise the portal
+# creation command will fail.
+targetcli set global auto_add_default_portal=false
 targetcli backstores/fileio/ create name=disk0 file_or_dev=/tmp/iscsi_disk.img size=100M
 targetcli iscsi/ create "${ISCSI_NAME}"
 targetcli iscsi/"${ISCSI_NAME}"/tpg1/luns/ create /backstores/fileio/disk0

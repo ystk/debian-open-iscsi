@@ -1,3 +1,27 @@
+open-iscsi (2.0.874-1~bpo8+1) jessie-backports; urgency=medium
+
+  * Rebuild for jessie-backports.
+
+ -- Christian Seiler <christian@iwakd.de>  Mon, 14 Nov 2016 21:05:13 +0100
+
+open-iscsi (2.0.874-1) unstable; urgency=medium
+
+  [ Christian Seiler ]
+  * [cfea3bc] New upstream version 2.0.874
+  * [b0bf3f3] debian/patches: drop patches applied upstream
+  * [6699561] debian/control: add lsb-base dependency for init script
+  * [8ede6f7] debian/tests: use targetcli-fb for nested tests
+  * [b7ba04a] debian/tests: bump Depends of autopkgtest, due to use of new
+    features
+  * [6f37806] debian/rules: explicitly regenerate lexers/parsers during
+    build
+
+  [ Frank Fegert ]
+  * [6004a7e] umountiscsi.sh: properly detect iSCSI disks from offloaded
+    sessions
+
+ -- Christian Seiler <christian@iwakd.de>  Sat, 29 Oct 2016 17:44:00 +0200
+
 open-iscsi (2.0.873+git2.f951a06b-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports. (No changes.)

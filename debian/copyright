@@ -224,25 +224,10 @@ Copyright: 2006-2008 Philipp Hug <debian@hug.cx>
            2016 Christian Seiler <christian@iwakd.de>
 License: GPL-2+
 
-Files: debian/patches/bugfixes/additional-spelling.patch
-       debian/patches/bugfixes/no-make-clean-kernel.patch
-       debian/patches/bugfixes/reproducible.patch
-       debian/patches/debian/dont-link-against-openssl.patch
+Files: debian/patches/*
 Copyright: 2016 Christian Seiler <christian@iwakd.de>
+           2016 Ritesh Raj Sarraf <rrs@researchut.com>
 License: Patches-GPL-2+-or-BSD-4-clause
-
-Files: debian/patches/bugfixes/man-github-pr16.patch
-       debian/patches/bugfixes/spelling-github-pr17.patch
-Copyright: 2016 Ville Skyttä <ville.skytta@iki.fi>
-License: GPL-2+
-
-Files: debian/patches/bugfixes/typo-github-pr13.patch
-Copyright: 2015 Christian Hesse <mail@eworm.de>
-License: GPL-2+
-
-Files: debian/patches/bugfixes/typo-github-pr2.patch
-Copyright: 2013 Mark Karpeles <mark@hell.ne.jp>
-License: GPL-2+
 
 Files: debian/patches/debian/var-run-lock.patch
 Copyright: 2016 Stéphane Graber <stgraber@ubuntu.com>
