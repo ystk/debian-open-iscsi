@@ -22,6 +22,8 @@ try:
   with open('/etc/resolv.conf', 'r') as f:
     for line in f:
       line = line.split()
+      if len(line) != 2:
+        continue
       if line[0] == 'nameserver':
         try:
           range = ipaddress.IPv4Network('%s/24' % line[1], strict=False)

@@ -1,1 +1,3 @@
-iscsiuio/src/unix/iscsiuio /sbin
+#!/usr/bin/dh-exec
+iscsiuio/src/unix/iscsiuio                /sbin
+debian/extra/iscsiuio.initramfs.hook   => /usr/share/initramfs-tools/hooks/iscsiuio

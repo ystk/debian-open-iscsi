@@ -185,6 +185,14 @@ do_iscsi_login ()
 	modprobe iscsi_tcp
 	modprobe crc32c
 
+	# If iscsiuio is present in the initramfs, start it, in case UIO
+	# offloading is required.
+	if [ -x /sbin/iscsiuio ] ; then
+		start-stop-daemon --start --quiet --pidfile /run/initramfs/iscsiuio.pid \
+				  --startas /sbin/iscsiuio --name iscsiuio \
+				  --exec /sbin/iscsiuio -- --pid=/run/initramfs/iscsiuio.pid || :
+	fi
+
 	if [ -z $ISCSI_AUTO ]; then
 		if [ -z $ISCSI_INITIATOR ]; then
 			. /etc/initiatorname.iscsi

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-PREREQ="udev"
+PREREQ="udev iscsi"
 
 prereqs()
 {
@@ -26,16 +26,10 @@ fi
 # Hooks for loading iscsi bits into the initramfs
 . /usr/share/initramfs-tools/hook-functions
 
-copy_exec /sbin/iscsistart /sbin
-cp /etc/iscsi/initiatorname.iscsi $DESTDIR/etc
-if [ -r /etc/iscsi/iscsi.initramfs ] ; then
-	cp /etc/iscsi/iscsi.initramfs $DESTDIR/etc
-fi
-
-for x in crc32c libcrc32c iscsi_tcp libiscsi scsi_transport_iscsi iscsi_ibft; do
-	manual_add_modules ${x}
+copy_exec /sbin/iscsiuio
+# iscsiuio needs libgcc_s library, so add it and its dependencies.
+LIBC_DIR=$(ldd /sbin/iscsiuio | sed -nr 's#.* => (/lib.*)/libc\.so\.[0-9.-]+ \(0x[[:xdigit:]]+\)$#\1#p')
+find -L "$LIBC_DIR" -maxdepth 1 -name 'libgcc_s.*' -type f | while read so; do
+	copy_exec "$so"
 done
-for x in cxgb3i cxgb4i; do
-	manual_add_modules ${x}
-done
-
+manual_add_modules bnx2i

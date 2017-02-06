@@ -124,6 +124,26 @@ to the ISCSI_TARGET_IP variable.
 Eg: ISCSI_TARGET_IP="192.168.1.1 192.168.2.1 192.168.3.1"
 This will allow login into all the Target IPs in the initrafs.
 
+
+QLogic/Broadcom (bnx2/bnx2x) Offloading
+-----------------------------------
+
+Cards managed by the bnx2 / bnx2x driver support hardware offloading of
+iSCSI sessions. To enable support for this, please install the iscsiuio
+package. Further details can be found in the package's README file,
+located in /usr/share/doc/iscsiuio/README.gz.
+
+
+Booting with Hardware Offloading
+-----------------------------------
+
+Booting from volumes accessed via hardware offloaded devices is
+supported. For bnx2/bnx2x cards the iscsiuio package must be installed.
+At the moment this is only supported when using automatic NIC
+configuration at boot time when using iscsi_auto on the kernel command
+line or ISCSI_AUTO=true in /etc/iscsi/iscsi.initramfs (see above).
+
+
 initramfs integration
 -----------------------------------
 

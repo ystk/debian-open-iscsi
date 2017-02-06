@@ -1,3 +1,45 @@
+open-iscsi (2.0.874-2~bpo8+1) jessie-backports; urgency=medium
+
+  * Rebuild for jessie-backports.
+
+ -- Christian Seiler <christian@iwakd.de>  Sun, 05 Feb 2017 10:45:37 +0100
+
+open-iscsi (2.0.874-2) unstable; urgency=medium
+
+  [ Christian Seiler ]
+  * Upload to sid.
+  * [dfc0d4a] Add some information about hardware offloading to README.Debian.
+  * [e5e3428] Properly dismantle dm-crypt devices on shutdown.
+    (Closes: #850211)
+
+  [ Andrew Patterson ]
+  * [dafd2de] Use /run/initramfs/iscsiuio.pid for pid file in initramfs
+  * [68f161f] Add iscsuio dependent libgcc_s library to debian initramfs
+    (Closes: #850060)
+  * [62f0717] Add Chelsio offload modules to initramfs
+  * [c1d67ee] Revert "Don't ignore offloading NICs in iscsistart."
+  * [b61d8ba] iscsiuio must be present to use hardware offload for bnx2x
+  * [fda3118] Move iscsistart offload discovery/setup to fw_get_targets()
+  * [397d886] Fix iscsiuio long options
+  * These changes make it possible to have the root filesystem on an iSCSI
+    volume and boot the system using hardware offloading.
+
+ -- Christian Seiler <christian@iwakd.de>  Wed, 25 Jan 2017 13:12:44 +0100
+
+open-iscsi (2.0.874-2~exp1) experimental; urgency=medium
+
+  * [c451bcf] debian/tests: drop specific sysvinit tests, assume testbed
+    setup for that instead.
+  * [f65cf91] debian/tests/find_free_ip.py: fix error when processing
+    empty lines in /etc/resolv.conf.
+  * [02c3051] Don't ignore offloading NICs in iscsistart. (Closes: #850057)
+  * [e47af5b] Add support for iscsiuio offloading to the initramfs.
+    (Closes: #850060)
+  * [9ab14bb] Build with -DOFFLOAD_BOOT_SUPPORTED for rootfs on offloaded
+    iSCSI.
+
+ -- Christian Seiler <christian@iwakd.de>  Wed, 04 Jan 2017 19:00:08 +0100
+
 open-iscsi (2.0.874-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.

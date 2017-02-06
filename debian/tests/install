@@ -2,8 +2,6 @@
 
 set -e
 
-. debian/tests/sysvinit.inc
-
 die()
 {
   echo "$@" >&2

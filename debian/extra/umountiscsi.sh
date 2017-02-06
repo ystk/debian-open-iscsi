@@ -7,6 +7,12 @@
 #   LVM -> multipath -> iSCSI
 #   multipath -> iSCSI
 #   LVM -> iSCSI
+#   LVM -> LUKS -> multipath -> iSCSI
+#   LVM -> LUKS -> iSCSI
+#   LUKS -> LVM -> multipath -> iSCSI
+#   LUKS -> multipath -> iSCSI
+#   LUKS -> LVM -> iSCSI
+#   LUKS -> iSCSI
 # It does not try to umount anything belonging to any device that is
 # also used as a backing store for the root filesystem. Any iSCSI
 # device part of the backing store of the root filesystem will be noted
@@ -58,11 +64,18 @@ PVS=/sbin/pvs
 LVS=/sbin/lvs
 VGS=/sbin/vgs
 VGCHANGE=/sbin/vgchange
+CRYPTSETUP=/sbin/cryptsetup
+DMSETUP=/sbin/dmsetup
 
 if [ -x $PVS ] && [ -x $LVS ] && [ -x $VGCHANGE ] ; then
 	HAVE_LVM=1
 else
 	HAVE_LVM=0
+fi
+if [ -x $CRYPTSETUP ] && [ -x $DMSETUP ] ; then
+	HAVE_LUKS=1
+else
+	HAVE_LUKS=0
 fi
 
 DRY_RUN=0
@@ -196,6 +209,28 @@ get_lvm_vgs() {
 	)
 }
 
+enumerate_luks() {
+	hash_clear LUKS_DEVICES_REVERSE_MAP
+
+	_all_crypt_devices=$($DMSETUP info --noheadings -o name -c -S subsystem=CRYPT 2>/dev/null || :)
+	for _crypt_device in ${_all_crypt_devices} ; do
+		[ -b "/dev/mapper/${_crypt_device}" ] || continue
+		_crypt_device="$(readlink -fe "/dev/mapper/${_crypt_device}" 2>/dev/null || :)"
+		_crypt_device="${_crypt_device#/dev/}"
+		[ -b "/dev/${_crypt_device}" ] || continue
+		# dmsetup deps is weird, it outputs the following:
+		# 1 dependencies : (XYZ)
+		_dep=$($DMSETUP deps -o blkdevname "/dev/${_crypt_device}" | sed -n '1s%.*: (\(.*\)).*%\1%p')
+		if [ -n "$_dep" ] && [ -b "/dev/${_dep}" ] ; then
+			_dep="$(readlink -fe "/dev/$_dep" 2>/dev/null || :)"
+			_dep="${_dep#/dev/}"
+		fi
+		if [ -n "$_dep" ] && [ -b "/dev/${_dep}" ] ; then
+			hash_set LUKS_DEVICES_REVERSE_MAP "${_dep}" "${_crypt_device}"
+		fi
+	done
+}
+
 enumerate_iscsi_devices() {
 	# Empty arrays
 	iscsi_disks=""
@@ -206,12 +241,20 @@ enumerate_iscsi_devices() {
 	iscsi_lvm_vgs=""
 	iscsi_lvm_lvs=""
 	iscsi_potential_mount_sources=""
+	iscsi_luks_pass1=""
+	iscsi_luks_pass2=""
 
 	hash_clear ISCSI_DEVICE_SESSIONS
 	hash_clear ISCSI_MPALIAS_SESSIONS
 	hash_clear ISCSI_LVMVG_SESSIONS
 	hash_clear ISCSI_NUMDEVICE_SESSIONS
 	ISCSI_EXCLUDED_SESSIONS=""
+
+	# We first need to generate a global reverse mapping of all
+	# cryptsetup (e.g. LUKS) devices, because there's no easy way
+	# to query "is this the encrypted backing of an active crypto
+	# mapping?
+	enumerate_luks
 
 	# Look for all iscsi disks
 	for _host_dir in /sys/devices/platform/host* /sys/devices/pci*/*/*/host* ; do
@@ -266,12 +309,25 @@ enumerate_iscsi_devices() {
 		done
 	fi
 
+	if [ $HAVE_LUKS -eq 1 ] ; then
+		# Look for all LUKS devices.
+		for _dev in $iscsi_disks $iscsi_partitions $iscsi_multipath_disks $iscsi_multipath_partitions ; do
+			hash_get _luksDev LUKS_DEVICES_REVERSE_MAP "${_dev}"
+			[ -n "${_luksDev}" ] || continue
+			add_to_set iscsi_luks_pass1 "${_luksDev}"
+			hash_get _currentSession ISCSI_DEVICE_SESSIONS "${_dev}"
+			if [ -n "${_currentSession}" ] ; then
+				hash_set ISCSI_DEVICE_SESSIONS "${_luksDev}" "${_currentSession}"
+			fi
+		done
+	fi
+
 	if [ $HAVE_LVM -eq 1 ] ; then
 		# Look for all LVM volume groups that have a backing store
 		# on any iSCSI device we found. Also, add $LVMGROUPS set in
 		# /etc/default/open-iscsi (for more complicated stacking
 		# configurations we don't automatically detect).
-		for _vg in $(get_lvm_vgs $iscsi_disks $iscsi_partitions $iscsi_multipath_disks $iscsi_multipath_partitions) $LVMGROUPS ; do
+		for _vg in $(get_lvm_vgs $iscsi_disks $iscsi_partitions $iscsi_multipath_disks $iscsi_multipath_partitions $iscsi_luks_pass1) $LVMGROUPS ; do
 			add_to_set iscsi_lvm_vgs "$_vg"
 		done
 
@@ -298,10 +354,24 @@ enumerate_iscsi_devices() {
 		done
 	fi
 
+	if [ $HAVE_LUKS -eq 1 ] ; then
+		# Look for all LUKS devices.
+		for _dev in $iscsi_lvm_lvs ; do
+			hash_get _luksDev LUKS_DEVICES_REVERSE_MAP "${_dev}"
+			[ -n "${_luksDev}" ] || continue
+			add_to_set iscsi_luks_pass2 "${_luksDev}"
+			hash_get _currentSession ISCSI_DEVICE_SESSIONS "${_dev}"
+			if [ -n "${_currentSession}" ] ; then
+				hash_set ISCSI_DEVICE_SESSIONS "${_luksDev}" "${_currentSession}"
+			fi
+		done
+	fi
+
 	# Gather together all mount sources
 	iscsi_potential_mount_sources="$iscsi_potential_mount_sources $iscsi_disks $iscsi_partitions"
 	iscsi_potential_mount_sources="$iscsi_potential_mount_sources $iscsi_multipath_disks $iscsi_multipath_partitions"
 	iscsi_potential_mount_sources="$iscsi_potential_mount_sources $iscsi_lvm_lvs"
+	iscsi_potential_mount_sources="$iscsi_potential_mount_sources $iscsi_luks_pass1 $iscsi_luks_pass2"
 
 	# Convert them to numerical representation
 	iscsi_potential_mount_sources_majmin=""
@@ -421,6 +491,33 @@ try_dismantle_multipath() {
 	done
 }
 
+try_dismantle_luks() {
+	[ $HAVE_LUKS -eq 1 ] || return
+	case "$1" in
+	1)	iscsi_luks_current_pass="$iscsi_luks_pass1" ;;
+	2|*)	iscsi_luks_current_pass="$iscsi_luks_pass2" ;;
+	esac
+
+	for luksDev in $iscsi_luks_current_pass ; do
+		luks_excluded=0
+		hash_get device_sessions ISCSI_DEVICE_SESSIONS "$luksDev"
+		for device_session in $device_sessions ; do
+			if in_set ISCSI_EXCLUDED_SESSIONS "$device_session" ; then
+				luks_excluded=1
+			fi
+		done
+		if [ $luks_excluded -eq 1 ] ; then
+			continue
+		fi
+		_luksName="$($DMSETUP info -c --noheadings -o name /dev/"$luksDev" 2>/dev/null || :)"
+		[ -n "${_luksName}" ] || continue
+		if ! $CRYPTSETUP close "${_luksName}" ; then
+			echo "Cannot dismantle cryptsetup device ${_luksName}" >&2
+			any_umount_failed=1
+		fi
+	done
+}
+
 # Don't do this if we are using systemd as init system, since systemd
 # takes care of network filesystems (including those marked _netdev) by
 # itself.
@@ -443,6 +540,28 @@ if [ $DRY_RUN -eq 1 ] ; then
 	fi
 	[ $had_mount -eq 1 ] || echo "  (none)"
 
+	echo "$0: would disable the following LUKS devices (second pass):"
+	had_luks=0
+	if [ -n "$iscsi_luks_pass2" ] ; then
+		for v in ${iscsi_luks_pass2} ; do
+			luks_excluded=0
+			hash_get device_sessions ISCSI_DEVICE_SESSIONS "$v"
+			for device_session in $device_sessions ; do
+				if in_set ISCSI_EXCLUDED_SESSIONS "$device_session" ; then
+					luks_excluded=1
+				fi
+			done
+			if [ $luks_excluded -eq 1 ] ; then
+				continue
+			fi
+			_luksName="$($DMSETUP info -c --noheadings -o name /dev/"$v" 2>/dev/null || :)"
+			[ -n "${_luksName}" ] || continue
+			echo "  ${_luksName}"
+			had_luks=1
+		done
+	fi
+	[ $had_luks -eq 1 ] || echo "  (none)"
+
 	echo "$0: would deactivate the following LVM Volume Groups:"
 	had_vg=0
 	if [ -n "$iscsi_lvm_vgs" ] ; then
@@ -463,6 +582,28 @@ if [ $DRY_RUN -eq 1 ] ; then
 		done
 	fi
 	[ $had_vg -eq 1 ] || echo "  (none)"
+
+	echo "$0: would disable the following LUKS devices (first pass):"
+	had_luks=0
+	if [ -n "$iscsi_luks_pass1" ] ; then
+		for v in ${iscsi_luks_pass1} ; do
+			luks_excluded=0
+			hash_get device_sessions ISCSI_DEVICE_SESSIONS "$v"
+			for device_session in $device_sessions ; do
+				if in_set ISCSI_EXCLUDED_SESSIONS "$device_session" ; then
+					luks_excluded=1
+				fi
+			done
+			if [ $luks_excluded -eq 1 ] ; then
+				continue
+			fi
+			_luksName="$($DMSETUP info -c --noheadings -o name /dev/"$v" 2>/dev/null || :)"
+			[ -n "${_luksName}" ] || continue
+			echo "  ${_luksName}"
+			had_luks=1
+		done
+	fi
+	[ $had_luks -eq 1 ] || echo "  (none)"
 
 	echo "$0: would deactivate the following multipath volumes:"
 	had_mp=0
@@ -510,7 +651,9 @@ fi
 
 any_umount_failed=0
 try_umount
+try_dismantle_luks 2
 try_deactivate_lvm
+try_dismantle_luks 1
 try_dismantle_multipath
 
 while [ $any_umount_failed -ne 0 ] && ( [ $timeout -gt 0 ] || [ $timeout -eq -1 ] ) ; do
@@ -522,7 +665,9 @@ while [ $any_umount_failed -ne 0 ] && ( [ $timeout -gt 0 ] || [ $timeout -eq -1 
 	enumerate_iscsi_devices
 	any_umount_failed=0
 	try_umount
+	try_dismantle_luks 2
 	try_deactivate_lvm
+	try_dismantle_luks 1
 	try_dismantle_multipath
 	if [ $timeout -gt 0 ] ; then
 		timeout=$((timeout - 1))

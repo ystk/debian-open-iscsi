@@ -1,0 +1,71 @@
+Description: Fix iscsiuio long options
+Author: Andrew Patterson <andrew.patterson@hpe.com>
+Bug: https://groups.google.com/forum/?_escaped_fragment_=msg/open-iscsi/PsT65Z4$
+Bug-Debian: https://bugs.debian.org/850057
+Last-Update: 2017-01-24
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/iscsiuio/src/unix/main.c
++++ b/iscsiuio/src/unix/main.c
+@@ -82,10 +82,12 @@
+  *  Global Variables
+  ******************************************************************************/
+ static const struct option long_options[] = {
+-	{"debug", 0, 0, 0},
+-	{"version", 0, 0, 0},
+-	{"help", 0, 0, 0},
+-	{0, 0, 0, 0}
++	{"foreground", no_argument, NULL, 'f'},
++	{"debug", required_argument, NULL, 'd'},
++	{"pid", required_argument, NULL, 'p'},
++	{"version", no_argument, NULL, 'v'},
++	{"help", no_argument, NULL, 'h'},
++	{NULL, no_argument, NULL, 0}
+ };
+ 
+ struct options opt = {
+@@ -172,7 +174,7 @@
+ 	printf("iscsiuio daemon.\n"
+ 	       "-f, --foreground        make the program run in the foreground\n"
+ 	       "-d, --debug debuglevel  print debugging information\n"
+-	       "-p, --pid=pidfile       use pid file (default  %s).\n"
++	       "-p, --pid pidfile       use pid file (default  %s).\n"
+ 	       "-h, --help              display this help and exit\n"
+ 	       "-v, --version           display version and exit\n",
+ 	       default_pid_filepath);
+--- a/iscsiuio/docs/iscsiuio.8
++++ b/iscsiuio/docs/iscsiuio.8
+@@ -45,7 +45,7 @@
+ .SH PARAMETERS
+ There are very few parameters when running this application.
+ .TP
+-.BI -d <debug level>
++.BI -d|--debug <debug level>
+ This is to enable debug mode where debug messages will be sent to stdout
+ The following debug modes are supported
+ .P
+@@ -61,20 +61,20 @@
+ .PP
+ .TP
+ .TP
+-.BI -f
++.BI -f|--foreground
+ This is to enable foreground mode so that this application doesn't get sent
+ into the background.
+ .PP
+ .TP
+-.BI -v
++.BI -v|--version
+ This is to print the version.
+ .PP
+ .TP
+-.BI -p <pidfile>
++.BI -p|--pid <pidfile>
+ Use pidfile (default  /var/run/iscsiuio.pid )
+ .PP
+ .TP
+-.BI -h
++.BI -h|--help
+ Display this help and exit.
+ 
+ 

@@ -2,3 +2,6 @@ bugfixes/no-make-clean-kernel.patch
 debian/var-run-lock.patch
 debian/dont-link-against-openssl.patch
 debian/udeb-without-libmount.patch
+bugfixes/need_iscsiuio_for_hardware_offload.patch
+bugfixes/move_offload_discovery_to_fw_get_targets.patch
+bugfixes/fix_iscsiuio_long_options.patch
